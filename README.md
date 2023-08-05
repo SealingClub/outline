@@ -27,6 +27,26 @@ If you have questions or improvements for the docs please create a thread in [Gi
 
 There is a short guide for [setting up a development environment](https://docs.getoutline.com/s/hosting/doc/local-development-5hEhFRXow7) if you wish to contribute changes, fixes, and improvements to Outline.
 
+## For windows
+
+为了在windows上正确运行，修改了docker-compose.yml和packag.josn
+
+首先clone一下
+
+```powershell
+git clone git@sealclub.wiki:WannaR/outline4sealclub.git
+```
+
+复制`.env.sample`到`.env`，然后把里面的`NODE_ENV`改成development，搞一个认证，windows中需要把Postgres中的localhost改成127.0.0.1，不然连不上数据库。
+
+然后运行
+
+```powershell
+make up
+```
+就可以开始了
+其余内容参看[setting up a development environment](https://docs.getoutline.com/s/hosting/doc/local-development-5hEhFRXow7)
+
 ## Contributing
 
 Outline is built and maintained by a small team – we'd love your help to fix bugs and add features!
