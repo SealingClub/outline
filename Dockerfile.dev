@@ -1,0 +1,12 @@
+FROM node:18-alpine
+
+WORKDIR /opt/outline
+
+COPY ./package.json ./yarn.lock ./
+
+RUN yarn install --pure-lockfile
+
+COPY . .
+
+USER root
+
