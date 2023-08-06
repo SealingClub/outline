@@ -29,7 +29,7 @@ There is a short guide for [setting up a development environment](https://docs.g
 
 ## For windows
 
-为了在windows上正确运行，修改了docker-compose.yml和packag.josn
+查文档发现这东西不支持在windows上直接开发（悲），但是我们可以用docker啊。docker还是很方便的。需要docker for desktop
 
 首先clone一下
 
@@ -37,15 +37,16 @@ There is a short guide for [setting up a development environment](https://docs.g
 git clone git@sealclub.wiki:WannaR/outline4sealclub.git
 ```
 
-复制`.env.sample`到`.env`，然后把里面的`NODE_ENV`改成development，搞一个认证，windows中需要把Postgres中的localhost改成127.0.0.1，不然连不上数据库。
-
 然后运行
 
 ```powershell
-make up
+cd outline4sealclub
+docker-compose -f docker-compose.dev.yml up
 ```
-就可以开始了
-其余内容参看[setting up a development environment](https://docs.getoutline.com/s/hosting/doc/local-development-5hEhFRXow7)
+
+就可以开始了开发了，so easy
+
+其余内容参看[setting up a development environment](https://docs.getoutline.com/s/hosting/doc/local-development-5hEhFRXow7)(其实没什么好看的)
 
 ## Contributing
 
