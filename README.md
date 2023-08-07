@@ -29,23 +29,66 @@ There is a short guide for [setting up a development environment](https://docs.g
 
 ## For windows
 
-查文档发现这东西不支持在windows上直接开发（悲），但是我们可以用docker啊。docker还是很方便的。需要docker for desktop
+查文档发现这东西不支持在windows上直接开发（悲），但是我们在Windows下还是有最好用的linux开放环境——wsl的（逃
+
+### 依赖
+
+* wsl
+* docker for desktop
+* nodejs （在wsl中）
+* yarn （在wsl中）
+
+首先打开wsl（这个东西应该在你安装docker的时候默认就安装了），你最好搞个发行版的wsl（可以在Microsoft商店获取，这是这个应用商店为数不多好用的时候
+
+进入wsl，按照nodejs
+
+然后使用
+
+```shell
+corepack enable
+```
+就可以开启yarn了
+
+### 开发环境
+
+建议使用vscode之类的东西连接wsl
 
 首先clone一下
 
-```powershell
+```shell
 git clone git@sealclub.wiki:WannaR/outline4sealclub.git
 ```
 
 然后运行
 
-```powershell
+```shell
 cd outline4sealclub
-docker-compose -f docker-compose.dev.yml up
+cp .env.sample .env
 ```
 
-就可以开始了开发了，so easy
+这个时候需要对`.env`文件进行一些配置。需要修改的配置如下
 
+```shell
+NODE_ENV=development
+
+SECRET_KEY=`openssl rand -hex 32`
+UTILS_SECRET=`openssl rand -hex 32`
+```
+改好之后运行
+
+```shell
+make up
+```
+
+就可以开始了开发了，so easy，如果你使用vscode之类的玩意，应该已经自动做了端口转发，否则你可能还需要改配置文件中的`URL`
+
+此时使用
+
+```shell
+node build/server/scripts/seed.js example@mail.com
+```
+
+可以生成一个临时的访问账户，无需配置oidc等登录服务。
 其余内容参看[setting up a development environment](https://docs.getoutline.com/s/hosting/doc/local-development-5hEhFRXow7)(其实没什么好看的)
 
 ## Contributing
