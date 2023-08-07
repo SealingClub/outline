@@ -38,6 +38,7 @@ import Marvel from "./Marvel";
 import Mindmeister from "./Mindmeister";
 import Miro from "./Miro";
 import ModeAnalytics from "./ModeAnalytics";
+import NetEaseCloudMusic from "./NetEaseCloudMusic";
 import Otter from "./Otter";
 import Pitch from "./Pitch";
 import Prezi from "./Prezi";
@@ -325,6 +326,13 @@ const embeds: EmbedDescriptor[] = [
     defaultHidden: true,
     icon: <Img src="/images/mode-analytics.png" alt="Mode" />,
     component: ModeAnalytics,
+  }),
+  new EmbedDescriptor({
+    title: "NetEaseCloudMusic",
+    keywords: "wyy",
+    defaultHidden: true,
+    icon: <Img src="/images/spotify.png" alt="Wyy" />,
+    component: NetEaseCloudMusic,
   }),
   new EmbedDescriptor({
     title: "Otter.ai",
