@@ -331,7 +331,7 @@ const embeds: EmbedDescriptor[] = [
     title: "NetEaseCloudMusic",
     keywords: "wyy",
     defaultHidden: true,
-    icon: <Img src="/images/spotify.png" alt="Wyy" />,
+    icon: <Img src="/images/wyy.png" alt="Wyy" />,
     component: NetEaseCloudMusic,
   }),
   new EmbedDescriptor({
