@@ -40,6 +40,7 @@ import ProsemirrorHelper from "@shared/utils/ProsemirrorHelper";
 import EventEmitter from "@shared/utils/events";
 import Flex from "~/components/Flex";
 import { PortalContext } from "~/components/Portal";
+import ExtentedExtensions from "~/editor/nodes";
 import { Dictionary } from "~/hooks/useDictionary";
 import Logger from "~/utils/Logger";
 import BlockMenu from "./components/BlockMenu";
@@ -52,6 +53,8 @@ import LinkToolbar from "./components/LinkToolbar";
 import MentionMenu from "./components/MentionMenu";
 import SelectionToolbar from "./components/SelectionToolbar";
 import WithTheme from "./components/WithTheme";
+
+ExtentedExtensions();
 
 const extensions = withComments(richExtensions);
 
@@ -211,6 +214,7 @@ export class Editor extends React.PureComponent<
   rulePlugins: PluginSimple[];
   events = new EventEmitter();
   mutationObserver?: MutationObserver;
+  portals = new Map<string, () => React.ReactPortal>();
 
   public constructor(props: Props & ThemeProps<DefaultTheme>) {
     super(props);
@@ -847,6 +851,9 @@ export class Editor extends React.PureComponent<
                   onFileUploadStop={this.props.onFileUploadStop}
                   embeds={this.props.embeds}
                 />
+                {[...this.portals].map(([key, Component]) => (
+                  <Component key={key} />
+                ))}
               </>
             )}
           </Flex>
