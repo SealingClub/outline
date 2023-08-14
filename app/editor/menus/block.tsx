@@ -23,6 +23,7 @@ import {
 } from "outline-icons";
 import * as React from "react";
 import styled from "styled-components";
+import { v4 as uuidv4 } from "uuid";
 import Image from "@shared/editor/components/Img";
 import { MenuItem } from "@shared/editor/types";
 import { Dictionary } from "~/hooks/useDictionary";
@@ -99,6 +100,13 @@ export default function blockMenuItems(dictionary: Dictionary): MenuItem[] {
       title: dictionary.video,
       icon: <EmbedIcon />,
       keywords: "mov avi upload player",
+    },
+    {
+      name: "thread",
+      title: "Thread",
+      icon: <LinkIcon />,
+      keywords: "comments",
+      attrs: () => ({ id: uuidv4() }),
     },
     {
       name: "attachment",
