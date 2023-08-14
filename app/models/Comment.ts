@@ -49,7 +49,12 @@ class Comment extends Model {
   @observable
   documentId: string;
 
-  @Relation(() => User)
+  @Field
+  @observable
+  isInpage: boolean;
+
+  createdAt: string;
+
   createdBy: User;
 
   createdById: string;
