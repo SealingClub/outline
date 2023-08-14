@@ -7,6 +7,7 @@ export default function present(comment: Comment) {
     data: comment.data,
     documentId: comment.documentId,
     parentCommentId: comment.parentCommentId,
+    isInpage: comment.isInpage,
     createdBy: presentUser(comment.createdBy),
     createdById: comment.createdById,
     createdAt: comment.createdAt,

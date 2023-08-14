@@ -11,6 +11,7 @@ type Props = {
   documentId: string;
   /** The parent comment we're replying to, if any */
   parentCommentId?: string;
+  isInpage?: boolean;
   /** The IP address of the user creating the comment */
   ip: string;
   transaction?: Transaction;
@@ -28,10 +29,15 @@ export default async function commentCreator({
   data,
   documentId,
   parentCommentId,
+  isInpage,
   ip,
   transaction,
 }: Props): Promise<Comment> {
   // TODO: Parse data to validate
+
+  if (!isInpage) {
+    isInpage = (await Comment.findByPk(parentCommentId))?.isInpage ?? false;
+  }
 
   const comment = await Comment.create(
     {
@@ -39,6 +45,7 @@ export default async function commentCreator({
       createdById: user.id,
       documentId,
       parentCommentId,
+      isInpage,
       data,
     },
     { transaction }

@@ -33,6 +33,7 @@ export const CommentsCreateSchema = BaseSchema.extend({
 
     /** Create comment with this data */
     data: ProsemirrorSchema,
+    isInpage: z.boolean().optional(),
   }),
 });
 
