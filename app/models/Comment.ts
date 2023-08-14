@@ -40,6 +40,10 @@ class Comment extends BaseModel {
   @observable
   documentId: string;
 
+  @Field
+  @observable
+  isInpage: boolean;
+
   createdAt: string;
 
   createdBy: User;
