@@ -28,6 +28,8 @@ export const CommentsCreateSchema = BaseSchema.extend({
 
     /** Create comment with this data */
     data: z.any(),
+
+    isInpage: z.boolean().optional(),
   }),
 });
 

@@ -23,7 +23,7 @@ router.post(
   validate(T.CommentsCreateSchema),
   transaction(),
   async (ctx: APIContext<T.CommentsCreateReq>) => {
-    const { id, documentId, parentCommentId, data } = ctx.input.body;
+    const { id, documentId, parentCommentId, data, isInpage } = ctx.input.body;
     const { user } = ctx.state.auth;
     const { transaction } = ctx.state;
 
@@ -38,6 +38,7 @@ router.post(
       data,
       parentCommentId,
       documentId,
+      isInpage,
       user,
       ip: ctx.request.ip,
       transaction,

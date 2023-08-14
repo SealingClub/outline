@@ -79,6 +79,9 @@ class Comment extends ParanoidModel {
   @ForeignKey(() => Comment)
   @Column(DataType.UUID)
   parentCommentId: string;
+
+  @Column(DataType.BOOLEAN)
+  isInpage: boolean;
 }
 
 export default Comment;
