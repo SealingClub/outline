@@ -62,18 +62,18 @@ export default class ComponentView {
 
   renderElement = () => {
     const { theme } = this.editor.props;
+    const children = this.component({
+      theme,
+      node: this.node,
+      view: this.view,
+      isSelected: this.isSelected,
+      isEditable: this.view.editable,
+      getPos: this.getPos,
+    });
+
     const portal = () =>
       ReactDOM.createPortal(
-        <ThemeProvider theme={theme}>
-          <this.component
-            theme={theme}
-            node={this.node}
-            view={this.view}
-            isSelected={this.isSelected}
-            isEditable={this.view.editable}
-            getPos={this.getPos}
-          />
-        </ThemeProvider>,
+        <ThemeProvider theme={theme}>{children}</ThemeProvider>,
         this.dom!,
         this.portalId
       );
