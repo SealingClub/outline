@@ -11,7 +11,7 @@ export default function Bilibili(props: Props) {
   return (
     <Frame
       {...props}
-      src={`https://player.bilibili.com/player.html?bvid=${videoId}&page=1&high_quality=1`}
+      src={`https://player.bilibili.com/player.html?bvid=${videoId}&page=1&high_quality=1&autoplay=0`}
       title={`Bilibili Embed (${videoId})`}
     />
   );
