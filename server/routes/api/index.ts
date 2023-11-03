@@ -44,6 +44,7 @@ api.use(
   bodyParser({
     multipart: true,
     formidable: {
+      maxFileSize: env.FILE_STORAGE_UPLOAD_MAX_SIZE,
       maxFieldsSize: 10 * 1024 * 1024,
     },
   })
@@ -60,8 +61,11 @@ glob
   .forEach((filePath: string) => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const pkg: Router = require(path.join(process.cwd(), filePath)).default;
-    router.use("/", pkg.routes());
-    Logger.debug("lifecycle", `Registered API routes for ${filePath}`);
+
+    if (pkg && "routes" in pkg) {
+      router.use("/", pkg.routes());
+      Logger.debug("lifecycle", `Registered API routes for ${filePath}`);
+    }
   });
 
 // routes

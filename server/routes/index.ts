@@ -1,14 +1,18 @@
+import crypto from "crypto";
 import path from "path";
+import formatRFC7231 from "date-fns/formatRFC7231";
 import Koa, { BaseContext } from "koa";
 import compress from "koa-compress";
 import Router from "koa-router";
 import send from "koa-send";
 import userAgent, { UserAgentContext } from "koa-useragent";
+import { Op } from "sequelize";
 import { languages } from "@shared/i18n";
 import { IntegrationType } from "@shared/types";
+import { parseDomain } from "@shared/utils/domains";
 import env from "@server/env";
 import { NotFoundError } from "@server/errors";
-import { Integration } from "@server/models";
+import { Integration, Share } from "@server/models";
 import { opensearchResponse } from "@server/utils/opensearch";
 import { getTeamFromContext } from "@server/utils/passport";
 import { robotsResponse } from "@server/utils/robots";
@@ -23,7 +27,7 @@ const router = new Router();
 koa.use<BaseContext, UserAgentContext>(userAgent);
 
 // serve public assets
-router.use(["/images/*", "/email/*"], async (ctx, next) => {
+router.use(["/images/*", "/email/*", "/fonts/*"], async (ctx, next) => {
   let done;
 
   if (ctx.method === "HEAD" || ctx.method === "GET") {
@@ -32,6 +36,9 @@ router.use(["/images/*", "/email/*"], async (ctx, next) => {
         root: path.resolve(__dirname, "../../../public"),
         // 7 day expiry, these assets are mostly static but do not contain a hash
         maxAge: 7 * 24 * 60 * 60 * 1000,
+        setHeaders: (res) => {
+          res.setHeader("Access-Control-Allow-Origin", "*");
+        },
       });
     } catch (err) {
       if (err.status !== 404) {
@@ -96,10 +103,12 @@ router.get("/locales/:lng.json", async (ctx) => {
   }
 
   await send(ctx, path.join(lng, "translation.json"), {
-    setHeaders: (res) => {
+    setHeaders: (res, _, stats) => {
+      res.setHeader("Last-Modified", formatRFC7231(stats.mtime));
+      res.setHeader("Cache-Control", `public, max-age=${7 * 24 * 60 * 60}`);
       res.setHeader(
-        "Cache-Control",
-        isProduction ? `max-age=${7 * 24 * 60 * 60}` : "no-cache"
+        "ETag",
+        crypto.createHash("md5").update(stats.mtime.toISOString()).digest("hex")
       );
     },
     root: path.join(__dirname, "../../shared/i18n/locales"),
@@ -123,6 +132,32 @@ router.get("/s/:shareId/*", renderShare);
 // catch all for application
 router.get("*", async (ctx, next) => {
   const team = await getTeamFromContext(ctx);
+
+  // Redirect all requests to custom domain if one is set
+  if (team?.domain && team.domain !== ctx.hostname) {
+    ctx.redirect(ctx.href.replace(ctx.hostname, team.domain));
+    return;
+  }
+
+  const isCustomDomain = parseDomain(ctx.host).custom;
+  const isDevelopment = env.ENVIRONMENT === "development";
+  if (!team && (isDevelopment || (isCustomDomain && env.isCloudHosted))) {
+    const share = await Share.unscoped().findOne({
+      where: {
+        domain: ctx.hostname,
+        published: true,
+        revokedAt: {
+          [Op.is]: null,
+        },
+      },
+    });
+
+    if (share) {
+      ctx.state.rootShare = share;
+      return renderShare(ctx, next);
+    }
+  }
+
   const analytics = team
     ? await Integration.findOne({
         where: {
@@ -131,12 +166,6 @@ router.get("*", async (ctx, next) => {
         },
       })
     : undefined;
-
-  // Redirect all requests to custom domain if one is set
-  if (team?.domain && team.domain !== ctx.hostname) {
-    ctx.redirect(ctx.href.replace(ctx.hostname, team.domain));
-    return;
-  }
 
   return renderApp(ctx, next, {
     analytics,

@@ -11,11 +11,11 @@ import * as Tracing from "@server/logging/tracer";
 import { traceFunction } from "@server/logging/tracing";
 import { Collection, User } from "@server/models";
 import { can } from "@server/policies";
+import Redis from "@server/storage/redis";
 import ShutdownHelper, { ShutdownOrder } from "@server/utils/ShutdownHelper";
 import { getUserForJWT } from "@server/utils/jwt";
 import { websocketQueue } from "../queues";
 import WebsocketsProcessor from "../queues/processors/WebsocketsProcessor";
-import Redis from "../redis";
 
 type SocketWithAuth = IO.Socket & {
   client: IO.Socket["client"] & {
@@ -85,8 +85,7 @@ export default function init(
 
   io.of("/").adapter.on("error", (err: Error) => {
     if (err.name === "MaxRetriesPerRequestError") {
-      Logger.error("Redis maximum retries exceeded in socketio adapter", err);
-      throw err;
+      Logger.fatal("Redis maximum retries exceeded in socketio adapter", err);
     } else {
       Logger.error("Redis error in socketio adapter", err);
     }
