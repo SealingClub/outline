@@ -4,7 +4,14 @@ import { EditorView } from "prosemirror-view";
 
 const MAX_MATCH = 500;
 
+export enum SuggestionsMenuType {
+  Emoji = "emoji",
+  Block = "block",
+  Mention = "mention",
+}
+
 type Options = {
+  type: SuggestionsMenuType;
   openRegex: RegExp;
   closeRegex: RegExp;
   enabledInCode: true;

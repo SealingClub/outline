@@ -116,6 +116,12 @@ export default class BlockMenuExtension extends Suggestion {
         uploadFile={props.uploadFile}
         onFileUploadStart={props.onFileUploadStart}
         onFileUploadStop={props.onFileUploadStop}
+        onLinkToolbarOpen={() => {
+          this.editor.setState((state) => ({
+            ...state,
+            linkToolbarOpen: true,
+          }));
+        }}
         embeds={props.embeds}
       />
     );

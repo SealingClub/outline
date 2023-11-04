@@ -199,7 +199,7 @@ function CommentThread({
   );
 }
 
-const Reply = styled.button`
+export const Reply = styled.button`
   border: 0;
   padding: 8px;
   margin: 0;
@@ -220,7 +220,7 @@ const Reply = styled.button`
   `}
 `;
 
-const Thread = styled.div<{
+export const Thread = styled.div<{
   $focused: boolean;
   $recessed: boolean;
   $dir?: "rtl" | "ltr";

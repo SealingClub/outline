@@ -33,6 +33,7 @@ import HardBreak from "./HardBreak";
 import Heading from "./Heading";
 import HorizontalRule from "./HorizontalRule";
 import Image from "./Image";
+import InPageThread from "./InpageThread";
 import ListItem from "./ListItem";
 import Math from "./Math";
 import MathBlock from "./MathBlock";
@@ -110,9 +111,15 @@ export const richExtensions: Nodes = [
   MathBlock,
   PreventTab,
   Keys,
+  InPageThread,
 ];
 
 /**
  * Add commenting and mentions to a set of nodes
  */
-export const withComments = (nodes: Nodes) => [...nodes, Mention, Comment];
+export const withComments = (nodes: Nodes) => [
+  Mention,
+  Comment,
+  InPageThread,
+  ...nodes,
+];

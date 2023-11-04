@@ -33,7 +33,7 @@ interface MentionItem extends MenuItem {
 
 type Props = Omit<
   SuggestionsMenuProps<MentionItem>,
-  "renderMenuItem" | "items" | "embeds" | "trigger"
+  "renderMenuItem" | "items" | "onLinkToolbarOpen" | "embeds" | "trigger"
 >;
 
 function MentionMenu({ search, isActive, ...rest }: Props) {

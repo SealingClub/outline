@@ -34,7 +34,7 @@ import ExtensionManager from "@shared/editor/lib/ExtensionManager";
 import { MarkdownSerializer } from "@shared/editor/lib/markdown/serializer";
 import textBetween from "@shared/editor/lib/textBetween";
 import Mark from "@shared/editor/marks/Mark";
-import { basicExtensions as extensions } from "@shared/editor/nodes";
+import { richExtensions, withComments } from "@shared/editor/nodes";
 import Node from "@shared/editor/nodes/Node";
 import ReactNode from "@shared/editor/nodes/ReactNode";
 import { EventType } from "@shared/editor/types";
@@ -43,6 +43,7 @@ import ProsemirrorHelper from "@shared/utils/ProsemirrorHelper";
 import EventEmitter from "@shared/utils/events";
 import Flex from "~/components/Flex";
 import { PortalContext } from "~/components/Portal";
+import ExtentedExtensions from "~/editor/nodes";
 import { Dictionary } from "~/hooks/useDictionary";
 import Logger from "~/utils/Logger";
 import ComponentView from "./components/ComponentView";
@@ -51,6 +52,10 @@ import { SearchResult } from "./components/LinkEditor";
 import LinkToolbar from "./components/LinkToolbar";
 import SelectionToolbar from "./components/SelectionToolbar";
 import WithTheme from "./components/WithTheme";
+
+ExtentedExtensions();
+
+const extensions = withComments(richExtensions);
 
 export type Props = {
   /** An optional identifier for the editor context. It is used to persist local settings */
@@ -197,6 +202,7 @@ export class Editor extends React.PureComponent<
   rulePlugins: PluginSimple[];
   events = new EventEmitter();
   mutationObserver?: MutationObserver;
+  portals = new Map<string, () => React.ReactPortal>();
 
   public constructor(props: Props & ThemeProps<DefaultTheme>) {
     super(props);
@@ -764,6 +770,9 @@ export class Editor extends React.PureComponent<
               Object.values(this.widgets).map((Widget, index) => (
                 <Widget key={String(index)} rtl={isRTL} />
               ))}
+            {[...this.portals].map(([key, Component]) => (
+              <Component key={key} />
+            ))}
           </Flex>
         </EditorContext.Provider>
       </PortalContext.Provider>

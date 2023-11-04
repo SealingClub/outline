@@ -10,7 +10,7 @@ type Props = Omit<
   SuggestionsMenuProps,
   "renderMenuItem" | "items" | "trigger"
 > &
-  Required<Pick<SuggestionsMenuProps, "embeds">>;
+  Required<Pick<SuggestionsMenuProps, "onLinkToolbarOpen" | "embeds">>;
 
 function BlockMenu(props: Props) {
   const dictionary = useDictionary();

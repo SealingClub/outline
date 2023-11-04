@@ -47,6 +47,10 @@ class Comment extends Model {
   @observable
   documentId: string;
 
+  @Field
+  @observable
+  isInpage: boolean;
+
   @Relation(() => User)
   createdBy: User;
 
