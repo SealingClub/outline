@@ -1,7 +1,10 @@
-import BaseModel from "./BaseModel";
 import User from "./User";
+import Model from "./base/Model";
+import Relation from "./decorators/Relation";
 
-class Event extends BaseModel {
+class Event extends Model {
+  static modelName = "Event";
+
   id: string;
 
   name: string;
@@ -18,8 +21,7 @@ class Event extends BaseModel {
 
   userId: string;
 
-  createdAt: string;
-
+  @Relation(() => User)
   actor: User;
 
   data: {

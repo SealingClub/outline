@@ -3,6 +3,7 @@ import throttle from "lodash/throttle";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { useHistory } from "react-router-dom";
+import { toast } from "sonner";
 import { IndexeddbPersistence } from "y-indexeddb";
 import * as Y from "yjs";
 import MultiplayerExtension from "@shared/editor/extensions/Multiplayer";
@@ -14,7 +15,6 @@ import useIdle from "~/hooks/useIdle";
 import useIsMounted from "~/hooks/useIsMounted";
 import usePageVisibility from "~/hooks/usePageVisibility";
 import useStores from "~/hooks/useStores";
-import useToasts from "~/hooks/useToasts";
 import { AwarenessChangeEvent } from "~/types";
 import Logger from "~/utils/Logger";
 import { homePath } from "~/utils/routeHelpers";
@@ -51,7 +51,6 @@ function MultiplayerEditor({ onSynced, ...props }: Props, ref: any) {
   const [isLocalSynced, setLocalSynced] = React.useState(false);
   const [isRemoteSynced, setRemoteSynced] = React.useState(false);
   const [ydoc] = React.useState(() => new Y.Doc());
-  const { showToast } = useToasts();
   const token = auth.collaborationToken;
   const isIdle = useIdle();
   const isVisible = usePageVisibility();
@@ -94,7 +93,7 @@ function MultiplayerEditor({ onSynced, ...props }: Props, ref: any) {
     );
 
     provider.on("authenticationFailed", () => {
-      void auth.fetch().catch(() => {
+      void auth.fetchAuth().catch(() => {
         history.replace(homePath());
       });
     });
@@ -135,13 +134,10 @@ function MultiplayerEditor({ onSynced, ...props }: Props, ref: any) {
     });
 
     provider.on("close", (ev: MessageEvent) => {
-      if ("code" in ev.event && ev.event.code === 1009) {
-        provider.shouldConnect = false;
-        showToast(
-          t(
-            "Sorry, this document is too large - edits will no longer be persisted."
-          )
-        );
+      if ("code" in ev.event) {
+        provider.shouldConnect =
+          ev.event.code !== 1009 && ev.event.code !== 4401;
+        ui.setMultiplayerStatus("disconnected", ev.event.code);
       }
     });
 
@@ -164,9 +160,11 @@ function MultiplayerEditor({ onSynced, ...props }: Props, ref: any) {
       );
     }
 
-    provider.on("status", (ev: ConnectionStatusEvent) =>
-      ui.setMultiplayerStatus(ev.status)
-    );
+    provider.on("status", (ev: ConnectionStatusEvent) => {
+      if (ui.multiplayerStatus !== ev.status) {
+        ui.setMultiplayerStatus(ev.status, undefined);
+      }
+    });
 
     setRemoteProvider(provider);
 
@@ -177,11 +175,10 @@ function MultiplayerEditor({ onSynced, ...props }: Props, ref: any) {
       provider?.destroy();
       void localProvider?.destroy();
       setRemoteProvider(null);
-      ui.setMultiplayerStatus(undefined);
+      ui.setMultiplayerStatus(undefined, undefined);
     };
   }, [
     history,
-    showToast,
     t,
     documentId,
     ui,
@@ -252,21 +249,17 @@ function MultiplayerEditor({ onSynced, ...props }: Props, ref: any) {
   React.useEffect(() => {
     function onUnhandledError(event: ErrorEvent) {
       if (event.message.includes("URIError: URI malformed")) {
-        showToast(
+        toast.error(
           t(
             "Sorry, the last change could not be persisted – please reload the page"
-          ),
-          {
-            type: "error",
-            timeout: 0,
-          }
+          )
         );
       }
     }
 
     window.addEventListener("error", onUnhandledError);
     return () => window.removeEventListener("error", onUnhandledError);
-  }, [showToast, t]);
+  }, [t]);
 
   if (!remoteProvider) {
     return null;

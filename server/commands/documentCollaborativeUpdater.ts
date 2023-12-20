@@ -2,10 +2,10 @@ import { yDocToProsemirrorJSON } from "@getoutline/y-prosemirror";
 import uniq from "lodash/uniq";
 import { Node } from "prosemirror-model";
 import * as Y from "yjs";
-import { sequelize } from "@server/database/sequelize";
 import { schema, serializer } from "@server/editor";
 import Logger from "@server/logging/Logger";
 import { Document, Event } from "@server/models";
+import { sequelize } from "@server/storage/database";
 
 type Props = {
   /** The document ID to update */
@@ -41,7 +41,8 @@ export default async function documentCollaborativeUpdater({
       });
 
     const state = Y.encodeStateAsUpdate(ydoc);
-    const node = Node.fromJSON(schema, yDocToProsemirrorJSON(ydoc, "default"));
+    const content = yDocToProsemirrorJSON(ydoc, "default");
+    const node = Node.fromJSON(schema, content);
     const text = serializer.serialize(node, undefined);
     const isUnchanged = document.text === text;
     const lastModifiedById = userId ?? document.lastModifiedById;
@@ -63,6 +64,7 @@ export default async function documentCollaborativeUpdater({
     await document.update(
       {
         text,
+        content,
         state: Buffer.from(state),
         lastModifiedById,
         collaboratorIds,

@@ -20,7 +20,7 @@ type Props = EmailProps & {
 /**
  * Email sent to a user when they request a magic sign-in link.
  */
-export default class SigninEmail extends BaseEmail<Props> {
+export default class SigninEmail extends BaseEmail<Props, Record<string, any>> {
   protected subject() {
     return "Magic signin link";
   }
@@ -41,12 +41,15 @@ signin page at: ${teamUrl}
   }
 
   protected render({ token, client, teamUrl }: Props) {
-    if (env.ENVIRONMENT === "development") {
+    if (env.isDevelopment) {
       logger.debug("email", `Sign-In link: ${this.signinLink(token, client)}`);
     }
 
     return (
-      <EmailTemplate>
+      <EmailTemplate
+        previewText={this.preview()}
+        goToAction={{ url: this.signinLink(token, client), name: "Sign In" }}
+      >
         <Header />
 
         <Body>

@@ -2,13 +2,14 @@ import { m } from "framer-motion";
 import * as React from "react";
 import { Portal } from "react-portal";
 import styled from "styled-components";
-import { depths, s } from "@shared/styles";
+import { depths } from "@shared/styles";
 import { UnfurlType } from "@shared/types";
 import LoadingIndicator from "~/components/LoadingIndicator";
 import useEventListener from "~/hooks/useEventListener";
 import useKeyDown from "~/hooks/useKeyDown";
 import useMobile from "~/hooks/useMobile";
 import useOnClickOutside from "~/hooks/useOnClickOutside";
+import usePrevious from "~/hooks/usePrevious";
 import useRequest from "~/hooks/useRequest";
 import useStores from "~/hooks/useStores";
 import { client } from "~/utils/ApiClient";
@@ -17,131 +18,77 @@ import HoverPreviewDocument from "./HoverPreviewDocument";
 import HoverPreviewLink from "./HoverPreviewLink";
 import HoverPreviewMention from "./HoverPreviewMention";
 
-const DELAY_OPEN = 300;
 const DELAY_CLOSE = 600;
+const POINTER_HEIGHT = 22;
+const POINTER_WIDTH = 22;
 
 type Props = {
-  /* The HTML element that is being hovered over */
-  element: HTMLAnchorElement;
-  /* A callback on close of the hover preview */
+  /** The HTML element that is being hovered over, or null if none. */
+  element: HTMLElement | null;
+  /** A callback on close of the hover preview. */
   onClose: () => void;
 };
 
-function HoverPreviewInternal({ element, onClose }: Props) {
-  const url = element.href || element.dataset.url;
+enum Direction {
+  UP,
+  DOWN,
+}
+
+function HoverPreviewDesktop({ element, onClose }: Props) {
+  const url = element?.getAttribute("href") || element?.dataset.url;
+  const previousUrl = usePrevious(url, true);
   const [isVisible, setVisible] = React.useState(false);
   const timerClose = React.useRef<ReturnType<typeof setTimeout>>();
-  const timerOpen = React.useRef<ReturnType<typeof setTimeout>>();
   const cardRef = React.useRef<HTMLDivElement>(null);
-  const stores = useStores();
-  const [cardLeft, setCardLeft] = React.useState(0);
-  const [cardTop, setCardTop] = React.useState(0);
-  const [pointerOffset, setPointerOffset] = React.useState(0);
-
-  React.useLayoutEffect(() => {
-    if (isVisible && cardRef.current) {
-      const elem = element.getBoundingClientRect();
-      const card = cardRef.current.getBoundingClientRect();
-
-      const top = elem.bottom + window.scrollY;
-      setCardTop(top);
-
-      let left = elem.left;
-      let pointerOffset = elem.width / 2;
-      if (left + card.width > window.innerWidth) {
-        // shift card leftwards by the amount it went out of screen
-        let shiftBy = left + card.width - window.innerWidth;
-        // shift a littler further to leave some margin between card and window boundary
-        shiftBy += CARD_MARGIN;
-        left -= shiftBy;
-
-        // shift pointer rightwards by same amount so as to position it back correctly
-        pointerOffset += shiftBy;
-      }
-      setCardLeft(left);
-
-      setPointerOffset(pointerOffset);
-    }
-  }, [isVisible, element]);
-
-  const { data, request, loading } = useRequest(
-    React.useCallback(
-      () =>
-        client.post("/urls.unfurl", {
-          url,
-          documentId: stores.ui.activeDocumentId,
-        }),
-      [url, stores.ui.activeDocumentId]
-    )
-  );
-
-  React.useEffect(() => {
-    if (url) {
-      stopOpenTimer();
-      setVisible(false);
-
-      void request();
-    }
-  }, [url, request]);
-
-  const stopOpenTimer = () => {
-    if (timerOpen.current) {
-      clearTimeout(timerOpen.current);
-      timerOpen.current = undefined;
-    }
-  };
+  const { cardLeft, cardTop, pointerLeft, pointerTop, pointerDir } =
+    useHoverPosition({
+      cardRef,
+      element,
+      isVisible,
+    });
 
   const closePreview = React.useCallback(() => {
-    if (isVisible) {
-      stopOpenTimer();
-      setVisible(false);
-      onClose();
-    }
-  }, [isVisible, onClose]);
+    setVisible(false);
+    onClose();
+  }, [onClose]);
 
-  useOnClickOutside(cardRef, closePreview);
-  useKeyDown("Escape", closePreview);
-  useEventListener("scroll", closePreview, window, { capture: true });
-
-  const stopCloseTimer = () => {
+  const stopCloseTimer = React.useCallback(() => {
     if (timerClose.current) {
       clearTimeout(timerClose.current);
       timerClose.current = undefined;
     }
-  };
-
-  const startOpenTimer = () => {
-    if (!timerOpen.current) {
-      timerOpen.current = setTimeout(() => setVisible(true), DELAY_OPEN);
-    }
-  };
+  }, []);
 
   const startCloseTimer = React.useCallback(() => {
-    stopOpenTimer();
     timerClose.current = setTimeout(closePreview, DELAY_CLOSE);
   }, [closePreview]);
 
+  // Open and close the preview when the element changes.
+  React.useEffect(() => {
+    if (element) {
+      setVisible(true);
+    } else {
+      startCloseTimer();
+    }
+  }, [startCloseTimer, element]);
+
+  // Close the preview on Escape, scroll, or click outside.
+  useOnClickOutside(cardRef, closePreview);
+  useKeyDown("Escape", closePreview);
+  useEventListener("scroll", closePreview, window, { capture: true });
+
+  // Ensure that the preview stays open while the user is hovering over the card.
   React.useEffect(() => {
     const card = cardRef.current;
 
-    if (data) {
-      startOpenTimer();
-
+    if (isVisible) {
       if (card) {
         card.addEventListener("mouseenter", stopCloseTimer);
         card.addEventListener("mouseleave", startCloseTimer);
       }
-
-      element.addEventListener("mouseout", startCloseTimer);
-      element.addEventListener("mouseover", stopCloseTimer);
-      element.addEventListener("mouseover", startOpenTimer);
     }
 
     return () => {
-      element.removeEventListener("mouseout", startCloseTimer);
-      element.removeEventListener("mouseover", stopCloseTimer);
-      element.removeEventListener("mouseover", startOpenTimer);
-
       if (card) {
         card.removeEventListener("mouseenter", stopCloseTimer);
         card.removeEventListener("mouseleave", startCloseTimer);
@@ -149,7 +96,83 @@ function HoverPreviewInternal({ element, onClose }: Props) {
 
       stopCloseTimer();
     };
-  }, [element, startCloseTimer, data]);
+  }, [element, startCloseTimer, isVisible, stopCloseTimer]);
+
+  const displayUrl = url ?? previousUrl;
+
+  if (!isVisible || !displayUrl) {
+    return null;
+  }
+
+  return (
+    <Portal>
+      <Position top={cardTop} left={cardLeft} ref={cardRef} aria-hidden>
+        <DataLoader url={displayUrl}>
+          {(data) => (
+            <Animate
+              initial={{ opacity: 0, y: -20, pointerEvents: "none" }}
+              animate={{ opacity: 1, y: 0, pointerEvents: "auto" }}
+            >
+              {data.type === UnfurlType.Mention ? (
+                <HoverPreviewMention
+                  url={data.thumbnailUrl}
+                  title={data.title}
+                  info={data.meta.info}
+                  color={data.meta.color}
+                />
+              ) : data.type === UnfurlType.Document ? (
+                <HoverPreviewDocument
+                  id={data.meta.id}
+                  url={data.url}
+                  title={data.title}
+                  description={data.description}
+                  info={data.meta.info}
+                />
+              ) : (
+                <HoverPreviewLink
+                  url={data.url}
+                  thumbnailUrl={data.thumbnailUrl}
+                  title={data.title}
+                  description={data.description}
+                />
+              )}
+              <Pointer
+                top={pointerTop}
+                left={pointerLeft}
+                direction={pointerDir}
+              />
+            </Animate>
+          )}
+        </DataLoader>
+      </Position>
+    </Portal>
+  );
+}
+
+function DataLoader({
+  url,
+  children,
+}: {
+  url: string;
+  children: (data: any) => React.ReactNode;
+}) {
+  const { ui } = useStores();
+  const { data, request, loading } = useRequest(
+    React.useCallback(
+      () =>
+        client.post("/urls.unfurl", {
+          url,
+          documentId: ui.activeDocumentId,
+        }),
+      [url, ui.activeDocumentId]
+    )
+  );
+
+  React.useEffect(() => {
+    if (url) {
+      void request();
+    }
+  }, [url, request]);
 
   if (loading) {
     return <LoadingIndicator />;
@@ -159,46 +182,7 @@ function HoverPreviewInternal({ element, onClose }: Props) {
     return null;
   }
 
-  return (
-    <Portal>
-      <Position top={cardTop} left={cardLeft} aria-hidden>
-        {isVisible ? (
-          <Animate
-            initial={{ opacity: 0, y: -20, pointerEvents: "none" }}
-            animate={{ opacity: 1, y: 0, pointerEvents: "auto" }}
-          >
-            {data.type === UnfurlType.Mention ? (
-              <HoverPreviewMention
-                ref={cardRef}
-                url={data.thumbnailUrl}
-                title={data.title}
-                info={data.meta.info}
-                color={data.meta.color}
-              />
-            ) : data.type === UnfurlType.Document ? (
-              <HoverPreviewDocument
-                ref={cardRef}
-                id={data.meta.id}
-                url={data.url}
-                title={data.title}
-                description={data.description}
-                info={data.meta.info}
-              />
-            ) : (
-              <HoverPreviewLink
-                ref={cardRef}
-                url={data.url}
-                thumbnailUrl={data.thumbnailUrl}
-                title={data.title}
-                description={data.description}
-              />
-            )}
-            <Pointer offset={pointerOffset} />
-          </Animate>
-        ) : null}
-      </Position>
-    </Portal>
-  );
+  return <>{children(data)}</>;
 }
 
 function HoverPreview({ element, ...rest }: Props) {
@@ -207,7 +191,64 @@ function HoverPreview({ element, ...rest }: Props) {
     return null;
   }
 
-  return <HoverPreviewInternal {...rest} element={element} />;
+  return <HoverPreviewDesktop {...rest} element={element} />;
+}
+
+function useHoverPosition({
+  cardRef,
+  element,
+  isVisible,
+}: {
+  cardRef: React.RefObject<HTMLDivElement>;
+  element: HTMLElement | null;
+  isVisible: boolean;
+}) {
+  const [cardLeft, setCardLeft] = React.useState(0);
+  const [cardTop, setCardTop] = React.useState(0);
+  const [pointerLeft, setPointerLeft] = React.useState(0);
+  const [pointerTop, setPointerTop] = React.useState(0);
+  const [pointerDir, setPointerDir] = React.useState(Direction.UP);
+
+  React.useLayoutEffect(() => {
+    if (isVisible && element && cardRef.current) {
+      const elem = element.getBoundingClientRect();
+      const card = cardRef.current.getBoundingClientRect();
+
+      let cTop = elem.bottom + window.scrollY + CARD_MARGIN;
+      let pTop = -POINTER_HEIGHT;
+      let pDir = Direction.UP;
+      if (cTop + card.height > window.innerHeight + window.scrollY) {
+        // shift card upwards if it goes out of screen
+        const bottom = elem.top + window.scrollY;
+        cTop = bottom - card.height;
+        // shift a little further to leave some margin between card and element boundary
+        cTop -= CARD_MARGIN;
+        // pointer should be shifted downwards to align with card's bottom
+        pTop = card.height;
+        pDir = Direction.DOWN;
+      }
+      setCardTop(cTop);
+      setPointerTop(pTop);
+      setPointerDir(pDir);
+
+      let cLeft = elem.left;
+      let pLeft = elem.width / 2;
+      if (cLeft + card.width > window.innerWidth) {
+        // shift card leftwards by the amount it went out of screen
+        let shiftBy = cLeft + card.width - window.innerWidth;
+        // shift a little further to leave some margin between card and window boundary
+        shiftBy += CARD_MARGIN;
+        cLeft -= shiftBy;
+
+        // shift pointer rightwards by same amount so as to position it back correctly
+        pLeft += shiftBy;
+      }
+      setCardLeft(cLeft);
+      setPointerLeft(pLeft);
+    }
+  }, [isVisible, cardRef, element]);
+
+  return { cardLeft, cardTop, pointerLeft, pointerTop, pointerDir };
 }
 
 const Animate = styled(m.div)`
@@ -217,7 +258,6 @@ const Animate = styled(m.div)`
 `;
 
 const Position = styled.div<{ fixed?: boolean; top?: number; left?: number }>`
-  margin-top: 10px;
   position: ${({ fixed }) => (fixed ? "fixed" : "absolute")};
   z-index: ${depths.hoverPreview};
   display: flex;
@@ -227,11 +267,11 @@ const Position = styled.div<{ fixed?: boolean; top?: number; left?: number }>`
   ${({ left }) => (left !== undefined ? `left: ${left}px` : "")};
 `;
 
-const Pointer = styled.div<{ offset: number }>`
-  top: -22px;
-  left: ${(props) => props.offset}px;
-  width: 22px;
-  height: 22px;
+const Pointer = styled.div<{ top: number; left: number; direction: Direction }>`
+  top: ${(props) => props.top}px;
+  left: ${(props) => props.left}px;
+  width: ${POINTER_WIDTH}px;
+  height: ${POINTER_HEIGHT}px;
   position: absolute;
   transform: translateX(-50%);
   pointer-events: none;
@@ -241,20 +281,26 @@ const Pointer = styled.div<{ offset: number }>`
     content: "";
     display: inline-block;
     position: absolute;
-    bottom: 0;
-    right: 0;
+    ${({ direction }) => (direction === Direction.UP ? "bottom: 0" : "top: 0")};
+    ${({ direction }) => (direction === Direction.UP ? "right: 0" : "left: 0")};
   }
 
   &:before {
     border: 8px solid transparent;
-    border-bottom-color: ${(props) =>
-      props.theme.menuBorder || "rgba(0, 0, 0, 0.1)"};
-    right: -1px;
+    ${({ direction, theme }) =>
+      direction === Direction.UP
+        ? `border-bottom-color: ${theme.menuBorder || "rgba(0, 0, 0, 0.1)"}`
+        : `border-top-color: ${theme.menuBorder || "rgba(0, 0, 0, 0.1)"}`};
+    ${({ direction }) =>
+      direction === Direction.UP ? "right: -1px" : "left: -1px"};
   }
 
   &:after {
     border: 7px solid transparent;
-    border-bottom-color: ${s("menuBackground")};
+    ${({ direction, theme }) =>
+      direction === Direction.UP
+        ? `border-bottom-color: ${theme.menuBackground}`
+        : `border-top-color: ${theme.menuBackground}`};
   }
 `;
 

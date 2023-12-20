@@ -5,12 +5,12 @@ import map from "lodash/map";
 import queryParser from "pg-tsquery";
 import { Op, QueryTypes, WhereOptions } from "sequelize";
 import { DateFilter } from "@shared/types";
-import { sequelize } from "@server/database/sequelize";
 import Collection from "@server/models/Collection";
 import Document from "@server/models/Document";
 import Share from "@server/models/Share";
 import Team from "@server/models/Team";
 import User from "@server/models/User";
+import { sequelize } from "@server/storage/database";
 
 type SearchResponse = {
   results: {
@@ -96,7 +96,7 @@ export default class SearchHelper {
       const sharedDocument = await options.share.$get("document");
       invariant(sharedDocument, "Cannot find document for share");
 
-      const childDocumentIds = await sharedDocument.getChildDocumentIds({
+      const childDocumentIds = await sharedDocument.findAllChildDocumentIds({
         archivedAt: {
           [Op.is]: null,
         },
@@ -427,7 +427,7 @@ export default class SearchHelper {
    * @param query The user search query
    * @returns The query formatted for Postgres ts_query
    */
-  private static webSearchQuery(query: string): string {
+  public static webSearchQuery(query: string): string {
     // limit length of search queries as we're using regex against untrusted input
     let limitedQuery = this.escapeQuery(query.slice(0, this.maxQueryLength));
 
@@ -439,7 +439,7 @@ export default class SearchHelper {
       !limitedQuery.endsWith('"');
 
     // Replace single quote characters with &.
-    const singleQuotes = limitedQuery.matchAll(/'/g);
+    const singleQuotes = limitedQuery.matchAll(/'+/g);
 
     for (const match of singleQuotes) {
       if (
@@ -454,8 +454,10 @@ export default class SearchHelper {
       }
     }
 
-    return queryParser()(
-      singleUnquotedSearch ? `${limitedQuery}*` : limitedQuery
+    return (
+      queryParser()(singleUnquotedSearch ? `${limitedQuery}*` : limitedQuery)
+        // Remove any trailing join characters
+        .replace(/&$/, "")
     );
   }
 

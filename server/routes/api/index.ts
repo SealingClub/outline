@@ -22,7 +22,8 @@ import events from "./events";
 import fileOperationsRoute from "./fileOperations";
 import groups from "./groups";
 import integrations from "./integrations";
-import apiWrapper from "./middlewares/apiWrapper";
+import apiResponse from "./middlewares/apiResponse";
+import apiTracer from "./middlewares/apiTracer";
 import editor from "./middlewares/editor";
 import notifications from "./notifications";
 import pins from "./pins";
@@ -44,13 +45,18 @@ api.use(
   bodyParser({
     multipart: true,
     formidable: {
+      maxFileSize: Math.max(
+        env.FILE_STORAGE_UPLOAD_MAX_SIZE,
+        env.MAXIMUM_IMPORT_SIZE
+      ),
       maxFieldsSize: 10 * 1024 * 1024,
     },
   })
 );
 api.use(coalesceBody());
 api.use<BaseContext, UserAgentContext>(userAgent);
-api.use(apiWrapper());
+api.use(apiTracer());
+api.use(apiResponse());
 api.use(editor());
 
 // register package API routes before others to allow for overrides
@@ -60,8 +66,11 @@ glob
   .forEach((filePath: string) => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const pkg: Router = require(path.join(process.cwd(), filePath)).default;
-    router.use("/", pkg.routes());
-    Logger.debug("lifecycle", `Registered API routes for ${filePath}`);
+
+    if (pkg && "routes" in pkg) {
+      router.use("/", pkg.routes());
+      Logger.debug("lifecycle", `Registered API routes for ${filePath}`);
+    }
   });
 
 // routes
@@ -89,7 +98,7 @@ router.use("/", groups.routes());
 router.use("/", fileOperationsRoute.routes());
 router.use("/", urls.routes());
 
-if (env.ENVIRONMENT === "development") {
+if (env.isDevelopment) {
   router.use("/", developer.routes());
 }
 

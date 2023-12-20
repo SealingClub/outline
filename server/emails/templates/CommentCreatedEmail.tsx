@@ -1,12 +1,11 @@
-import inlineCss from "inline-css";
 import * as React from "react";
 import { NotificationEventType } from "@shared/types";
 import { Day } from "@shared/utils/time";
-import env from "@server/env";
-import { Collection, Comment, Document, User } from "@server/models";
-import DocumentHelper from "@server/models/helpers/DocumentHelper";
+import { Collection, Comment, Document } from "@server/models";
+import HTMLHelper from "@server/models/helpers/HTMLHelper";
 import NotificationSettingsHelper from "@server/models/helpers/NotificationSettingsHelper";
 import ProsemirrorHelper from "@server/models/helpers/ProsemirrorHelper";
+import TextHelper from "@server/models/helpers/TextHelper";
 import BaseEmail, { EmailProps } from "./BaseEmail";
 import Body from "./components/Body";
 import Button from "./components/Button";
@@ -44,7 +43,8 @@ export default class CommentCreatedEmail extends BaseEmail<
   InputProps,
   BeforeSend
 > {
-  protected async beforeSend({ documentId, userId, commentId }: InputProps) {
+  protected async beforeSend(props: InputProps) {
+    const { documentId, commentId } = props;
     const document = await Document.unscoped().findByPk(documentId);
     if (!document) {
       return false;
@@ -74,7 +74,7 @@ export default class CommentCreatedEmail extends BaseEmail<
       }
     );
 
-    content = await DocumentHelper.attachmentsToSignedUrls(
+    content = await TextHelper.attachmentsToSignedUrls(
       content,
       document.teamId,
       (4 * Day) / 1000
@@ -82,12 +82,7 @@ export default class CommentCreatedEmail extends BaseEmail<
 
     if (content) {
       // inline all css so that it works in as many email providers as possible.
-      body = await inlineCss(content, {
-        url: env.URL,
-        applyStyleTags: true,
-        applyLinkTags: false,
-        removeStyleTags: true,
-      });
+      body = HTMLHelper.inlineCSS(content);
     }
 
     const isReply = !!comment.parentCommentId;
@@ -99,11 +94,15 @@ export default class CommentCreatedEmail extends BaseEmail<
       isReply,
       isFirstComment,
       body,
-      unsubscribeUrl: NotificationSettingsHelper.unsubscribeUrl(
-        await User.findByPk(userId, { rejectOnEmpty: true }),
-        NotificationEventType.CreateComment
-      ),
+      unsubscribeUrl: this.unsubscribeUrl(props),
     };
+  }
+
+  protected unsubscribeUrl({ userId }: InputProps) {
+    return NotificationSettingsHelper.unsubscribeUrl(
+      userId,
+      NotificationEventType.CreateComment
+    );
   }
 
   protected subject({ isFirstComment, document }: Props) {
@@ -137,27 +136,31 @@ Open Thread: ${teamUrl}${document.url}?commentId=${commentId}
 `;
   }
 
-  protected render({
-    document,
-    actorName,
-    isReply,
-    collection,
-    teamUrl,
-    commentId,
-    unsubscribeUrl,
-    body,
-  }: Props) {
-    const link = `${teamUrl}${document.url}?commentId=${commentId}&ref=notification-email`;
+  protected render(props: Props) {
+    const {
+      document,
+      actorName,
+      isReply,
+      collection,
+      teamUrl,
+      commentId,
+      unsubscribeUrl,
+      body,
+    } = props;
+    const threadLink = `${teamUrl}${document.url}?commentId=${commentId}&ref=notification-email`;
 
     return (
-      <EmailTemplate>
+      <EmailTemplate
+        previewText={this.preview(props)}
+        goToAction={{ url: threadLink, name: "View Thread" }}
+      >
         <Header />
 
         <Body>
           <Heading>{document.title}</Heading>
           <p>
             {actorName} {isReply ? "replied to a thread in" : "commented on"}{" "}
-            <a href={link}>{document.title}</a>{" "}
+            <a href={threadLink}>{document.title}</a>{" "}
             {collection.name ? `in the ${collection.name} collection` : ""}.
           </p>
           {body && (
@@ -170,7 +173,7 @@ Open Thread: ${teamUrl}${document.url}?commentId=${commentId}
             </>
           )}
           <p>
-            <Button href={link}>Open Thread</Button>
+            <Button href={threadLink}>Open Thread</Button>
           </p>
         </Body>
 

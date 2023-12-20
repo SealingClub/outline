@@ -9,6 +9,7 @@ import {
   IsNumeric,
   Length as SimpleLength,
 } from "sequelize-typescript";
+import type { ProsemirrorData } from "@shared/types";
 import { DocumentValidation } from "@shared/validations";
 import Document from "./Document";
 import User from "./User";
@@ -46,8 +47,27 @@ class Revision extends IdModel {
   @Column
   title: string;
 
+  /**
+   * The content of the revision as Markdown.
+   *
+   * @deprecated Use `content` instead, or `DocumentHelper.toMarkdown` if exporting lossy markdown.
+   * This column will be removed in a future migration.
+   */
   @Column(DataType.TEXT)
   text: string;
+
+  /**
+   * The content of the revision as JSON.
+   */
+  @Column(DataType.JSONB)
+  content: ProsemirrorData;
+
+  @Length({
+    max: 1,
+    msg: `Emoji must be a single character`,
+  })
+  @Column
+  emoji: string | null;
 
   // associations
 
@@ -65,6 +85,14 @@ class Revision extends IdModel {
   @Column(DataType.UUID)
   userId: string;
 
+  // static methods
+
+  /**
+   * Find the latest revision for a given document
+   *
+   * @param documentId The document id to find the latest revision for
+   * @returns A Promise that resolves to a Revision model
+   */
   static findLatest(documentId: string) {
     return this.findOne({
       where: {
@@ -74,10 +102,18 @@ class Revision extends IdModel {
     });
   }
 
+  /**
+   * Build a Revision model from a Document model
+   *
+   * @param document The document to build from
+   * @returns A Revision model
+   */
   static buildFromDocument(document: Document) {
     return this.build({
       title: document.title,
       text: document.text,
+      emoji: document.emoji,
+      content: document.content,
       userId: document.lastModifiedById,
       editorVersion: document.editorVersion,
       version: document.version,
@@ -88,6 +124,13 @@ class Revision extends IdModel {
     });
   }
 
+  /**
+   * Create a Revision model from a Document model and save it to the database
+   *
+   * @param document The document to create from
+   * @param options Options passed to the save method
+   * @returns A Promise that resolves when saved
+   */
   static createFromDocument(
     document: Document,
     options?: SaveOptions<Revision>
@@ -98,7 +141,12 @@ class Revision extends IdModel {
 
   // instance methods
 
-  previous(): Promise<Revision | null> {
+  /**
+   * Find the revision for the document before this one.
+   *
+   * @returns A Promise that resolves to a Revision, or null if this is the first revision.
+   */
+  before(): Promise<Revision | null> {
     return (this.constructor as typeof Revision).findOne({
       where: {
         documentId: this.documentId,

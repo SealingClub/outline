@@ -8,11 +8,13 @@ import {
 import { sortNavigationNodes } from "@shared/utils/collections";
 import type CollectionsStore from "~/stores/CollectionsStore";
 import Document from "~/models/Document";
-import ParanoidModel from "~/models/ParanoidModel";
+import ParanoidModel from "~/models/base/ParanoidModel";
 import { client } from "~/utils/ApiClient";
 import Field from "./decorators/Field";
 
 export default class Collection extends ParanoidModel {
+  static modelName = "Collection";
+
   store: CollectionsStore;
 
   @observable
@@ -62,8 +64,10 @@ export default class Collection extends ParanoidModel {
   @observable
   documents?: NavigationNode[];
 
+  @observable
   url: string;
 
+  @observable
   urlId: string;
 
   constructor(fields: Partial<Collection>, store: CollectionsStore) {
@@ -122,6 +126,16 @@ export default class Collection extends ParanoidModel {
       return undefined;
     }
     return sortNavigationNodes(this.documents, this.sort);
+  }
+
+  /**
+   * The initial letter of the collection name.
+   *
+   * @returns string
+   */
+  @computed
+  get initial() {
+    return (this.name ? this.name[0] : "?").toUpperCase();
   }
 
   fetchDocuments = async (options?: { force: boolean }) => {

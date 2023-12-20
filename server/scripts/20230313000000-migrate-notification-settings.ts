@@ -1,7 +1,7 @@
 import "./bootstrap";
 import { QueryTypes } from "sequelize";
-import { sequelize } from "@server/database/sequelize";
 import { User } from "@server/models";
+import { sequelize } from "@server/storage/database";
 
 const limit = 100;
 let page = parseInt(process.argv[2], 10);
@@ -11,6 +11,7 @@ export default async function main(exit = false) {
   const work = async (page: number): Promise<void> => {
     console.log(`Backfill user notification settings… page ${page}`);
     const users = await User.findAll({
+      attributes: ["id", "notificationSettings"],
       limit,
       offset: page * limit,
       order: [["createdAt", "ASC"]],

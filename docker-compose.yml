@@ -6,17 +6,11 @@ services:
       - "127.0.0.1:6379:6379"
     user: "redis:redis"
   postgres:
-    image: bitnami/postgresql
+    image: postgres
     ports:
       - "127.0.0.1:5432:5432"
     environment:
-      POSTGRESQL_USERNAME: user
-      POSTGRESQL_PASSWORD: pass
-      POSTGRESQL_DATABASE: outline
-    # user: "postgres:postgres"
-  s3:
-    image: lphoward/fake-s3
-    ports:
-      - "127.0.0.1:4569:4569"
-    volumes:
-      - ./fakes3:/fakes3_root
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: outline
+    user: "postgres:postgres"

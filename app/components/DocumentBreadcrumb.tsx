@@ -12,9 +12,10 @@ import { MenuInternalLink } from "~/types";
 import {
   archivePath,
   collectionPath,
-  templatesPath,
+  settingsPath,
   trashPath,
 } from "~/utils/routeHelpers";
+import EmojiIcon from "./Icons/EmojiIcon";
 
 type Props = {
   children?: React.ReactNode;
@@ -43,12 +44,12 @@ function useCategory(document: Document): MenuInternalLink | null {
     };
   }
 
-  if (document.isTemplate) {
+  if (document.template) {
     return {
       type: "route",
       icon: <ShapesIcon />,
       title: t("Templates"),
-      to: templatesPath(),
+      to: settingsPath("templates"),
     };
   }
 
@@ -66,6 +67,10 @@ const DocumentBreadcrumb: React.FC<Props> = ({
   const collection = document.collectionId
     ? collections.get(document.collectionId)
     : undefined;
+
+  React.useEffect(() => {
+    void document.loadRelations();
+  }, [document]);
 
   let collectionNode: MenuInternalLink | undefined;
 
@@ -85,11 +90,7 @@ const DocumentBreadcrumb: React.FC<Props> = ({
     };
   }
 
-  const path = React.useMemo(
-    () => collection?.pathToDocument(document.id).slice(0, -1) || [],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [collection, document, document.collectionId, document.parentDocumentId]
-  );
+  const path = document.pathTo;
 
   const items = React.useMemo(() => {
     const output = [];
@@ -102,10 +103,16 @@ const DocumentBreadcrumb: React.FC<Props> = ({
       output.push(collectionNode);
     }
 
-    path.forEach((node: NavigationNode) => {
+    path.slice(0, -1).forEach((node: NavigationNode) => {
       output.push({
         type: "route",
-        title: node.title,
+        title: node.emoji ? (
+          <>
+            <EmojiIcon emoji={node.emoji} /> {node.title}
+          </>
+        ) : (
+          node.title
+        ),
         to: node.url,
       });
     });

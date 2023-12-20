@@ -9,9 +9,8 @@ import { DateFilter, NavigationNode, PublicTeam } from "@shared/types";
 import { subtractDate } from "@shared/utils/date";
 import { bytesToHumanReadable } from "@shared/utils/files";
 import naturalSort from "@shared/utils/naturalSort";
-import { DocumentValidation } from "@shared/validations";
-import BaseStore from "~/stores/BaseStore";
 import RootStore from "~/stores/RootStore";
+import Store from "~/stores/base/Store";
 import Document from "~/models/Document";
 import env from "~/env";
 import { FetchOptions, PaginationParams, SearchResult } from "~/types";
@@ -38,14 +37,11 @@ type ImportOptions = {
   publish?: boolean;
 };
 
-export default class DocumentsStore extends BaseStore<Document> {
+export default class DocumentsStore extends Store<Document> {
   sharedCache: Map<
     string,
     { sharedTree: NavigationNode; team: PublicTeam } | undefined
   > = new Map();
-
-  @observable
-  searchCache: Map<string, SearchResult[] | undefined> = new Map();
 
   @observable
   backlinks: Map<string, string[]> = new Map();
@@ -172,10 +168,6 @@ export default class DocumentsStore extends BaseStore<Document> {
 
   alphabeticalInCollection(collectionId: string): Document[] {
     return naturalSort(this.inCollection(collectionId), "title");
-  }
-
-  searchResults(query: string): SearchResult[] | undefined {
-    return this.searchCache.get(query);
   }
 
   @computed
@@ -368,7 +360,10 @@ export default class DocumentsStore extends BaseStore<Document> {
     this.fetchNamedPage("list", options);
 
   @action
-  searchTitles = async (query: string, options?: SearchParams) => {
+  searchTitles = async (
+    query: string,
+    options?: SearchParams
+  ): Promise<SearchResult[]> => {
     const compactedOptions = omitBy(options, (o) => !o);
     const res = await client.post("/documents.search_titles", {
       ...compactedOptions,
@@ -389,15 +384,12 @@ export default class DocumentsStore extends BaseStore<Document> {
           return null;
         }
         return {
+          id: document.id,
           document,
         };
       })
     );
-    const existing = this.searchCache.get(query) || [];
-    // splice modifies any existing results, taking into account pagination
-    existing.splice(0, existing.length, ...results);
-    this.searchCache.set(query, existing);
-    return res.data;
+    return results;
   };
 
   @action
@@ -432,11 +424,7 @@ export default class DocumentsStore extends BaseStore<Document> {
         };
       })
     );
-    const existing = this.searchCache.get(query) || [];
-    // splice modifies any existing results, taking into account pagination
-    existing.splice(options.offset || 0, options.limit || 0, ...results);
-    this.searchCache.set(query, existing);
-    return res.data;
+    return results;
   };
 
   @action
@@ -558,26 +546,21 @@ export default class DocumentsStore extends BaseStore<Document> {
   };
 
   @action
-  duplicate = async (document: Document): Promise<Document> => {
-    const append = " (duplicate)";
-    const res = await client.post("/documents.create", {
-      publish: document.isTemplate,
-      parentDocumentId: null,
-      collectionId: document.isTemplate ? document.collectionId : null,
-      template: document.isTemplate,
-      title: `${document.title.slice(
-        0,
-        DocumentValidation.maxTitleLength - append.length
-      )}${append}`,
-      text: document.text,
+  duplicate = async (
+    document: Document,
+    options?: {
+      title?: string;
+      recursive?: boolean;
+    }
+  ): Promise<Document[]> => {
+    const res = await client.post("/documents.duplicate", {
+      id: document.id,
+      ...options,
     });
     invariant(res?.data, "Data should be available");
-    const collection = this.getCollectionForDocument(document);
-    if (collection) {
-      collection.refresh();
-    }
+
     this.addPolicies(res.policies);
-    return this.add(res.data);
+    return res.data.documents.map(this.add);
   };
 
   @action
@@ -658,41 +641,6 @@ export default class DocumentsStore extends BaseStore<Document> {
   }
 
   @action
-  async update(
-    params: {
-      id: string;
-      title: string;
-      text?: string;
-      fullWidth?: boolean;
-      templateId?: string;
-    },
-    options?: {
-      publish?: boolean;
-      done?: boolean;
-      autosave?: boolean;
-    }
-  ) {
-    this.isSaving = true;
-
-    try {
-      const res = await client.post(`/${this.apiEndpoint}.update`, {
-        ...params,
-        ...options,
-        apiVersion: 2,
-      });
-
-      invariant(res?.data, "Data should be available");
-      this.addPolicies(res.policies);
-      const document = this.add(res.data.document);
-      const collection = this.getCollectionForDocument(document);
-      collection?.updateFromJson(res.data.collection);
-      return document;
-    } finally {
-      this.isSaving = false;
-    }
-  }
-
-  @action
   async delete(
     document: Document,
     options?: {
@@ -710,7 +658,7 @@ export default class DocumentsStore extends BaseStore<Document> {
 
     const collection = this.getCollectionForDocument(document);
     if (collection) {
-      collection.refresh();
+      await collection.refresh();
     }
   }
 
@@ -721,12 +669,12 @@ export default class DocumentsStore extends BaseStore<Document> {
     });
     runInAction("Document#archive", () => {
       invariant(res?.data, "Data should be available");
-      document.updateFromJson(res.data);
+      document.updateData(res.data);
       this.addPolicies(res.policies);
     });
     const collection = this.getCollectionForDocument(document);
     if (collection) {
-      collection.refresh();
+      await collection.refresh();
     }
   };
 
@@ -745,28 +693,38 @@ export default class DocumentsStore extends BaseStore<Document> {
     });
     runInAction("Document#restore", () => {
       invariant(res?.data, "Data should be available");
-      document.updateFromJson(res.data);
+      document.updateData(res.data);
       this.addPolicies(res.policies);
     });
     const collection = this.getCollectionForDocument(document);
     if (collection) {
-      collection.refresh();
+      await collection.refresh();
     }
   };
+
+  @action
+  async update(
+    params: Partial<Document>,
+    options?: Record<string, string | boolean | number | undefined>
+  ): Promise<Document> {
+    const document = await super.update(params, options);
+    const collection = this.getCollectionForDocument(document);
+    void collection?.fetchDocuments({ force: true });
+    return document;
+  }
 
   @action
   unpublish = async (document: Document) => {
     const res = await client.post("/documents.unpublish", {
       id: document.id,
-      apiVersion: 2,
     });
 
     runInAction("Document#unpublish", () => {
       invariant(res?.data, "Data should be available");
-      document.updateFromJson(res.data.document);
-      const collection = this.getCollectionForDocument(document);
-      collection?.updateFromJson(res.data.collection);
+      document.updateData(res.data);
       this.addPolicies(res.policies);
+      const collection = this.getCollectionForDocument(document);
+      void collection?.fetchDocuments({ force: true });
     });
   };
 

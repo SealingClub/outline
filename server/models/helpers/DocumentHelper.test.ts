@@ -3,6 +3,15 @@ import { buildDocument } from "@server/test/factories";
 import DocumentHelper from "./DocumentHelper";
 
 describe("DocumentHelper", () => {
+  beforeAll(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(Date.parse("2021-01-01T00:00:00.000Z"));
+  });
+
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
   describe("parseMentions", () => {
     it("should not parse normal links as mentions", async () => {
       const document = await buildDocument({

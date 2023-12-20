@@ -1,6 +1,7 @@
 import Router from "koa-router";
 import { Op } from "sequelize";
 import { RevisionHelper } from "@shared/utils/RevisionHelper";
+import slugify from "@shared/utils/slugify";
 import { ValidationError } from "@server/errors";
 import auth from "@server/middlewares/authentication";
 import validate from "@server/middlewares/validate";
@@ -9,7 +10,6 @@ import DocumentHelper from "@server/models/helpers/DocumentHelper";
 import { authorize } from "@server/policies";
 import { presentRevision } from "@server/presenters";
 import { APIContext } from "@server/types";
-import slugify from "@server/utils/slugify";
 import pagination from "../middlewares/pagination";
 import * as T from "./schema";
 
@@ -34,7 +34,7 @@ router.post(
       });
       authorize(user, "read", document);
       after = revision;
-      before = await revision.previous();
+      before = await revision.before();
     } else if (documentId) {
       const document = await Document.findByPk(documentId, {
         userId: user.id,
@@ -94,20 +94,16 @@ router.post(
         );
       }
     } else {
-      before = await revision.previous();
+      before = await revision.before();
     }
 
     const accept = ctx.request.headers["accept"];
     const content = await DocumentHelper.diff(before, revision);
 
     if (accept?.includes("text/html")) {
+      const name = `${slugify(document.titleWithDefault)}-${revision.id}.html`;
       ctx.set("Content-Type", "text/html");
-      ctx.set(
-        "Content-Disposition",
-        `attachment; filename="${slugify(document.titleWithDefault)}-${
-          revision.id
-        }.html"`
-      );
+      ctx.attachment(name);
       ctx.body = content;
       return;
     }

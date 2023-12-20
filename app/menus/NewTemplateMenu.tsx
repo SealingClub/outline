@@ -14,7 +14,7 @@ import useCurrentTeam from "~/hooks/useCurrentTeam";
 import usePolicy from "~/hooks/usePolicy";
 import useStores from "~/hooks/useStores";
 import { MenuItem } from "~/types";
-import { newDocumentPath } from "~/utils/routeHelpers";
+import { newTemplatePath } from "~/utils/routeHelpers";
 
 function NewTemplateMenu() {
   const menu = useMenuState({
@@ -24,18 +24,21 @@ function NewTemplateMenu() {
   const team = useCurrentTeam();
   const { collections, policies } = useStores();
   const can = usePolicy(team);
+  React.useEffect(() => {
+    void collections.fetchPage({
+      limit: 100,
+    });
+  }, [collections]);
 
   const items = React.useMemo(
     () =>
       collections.orderedData.reduce<MenuItem[]>((filtered, collection) => {
         const can = policies.abilities(collection.id);
 
-        if (can.update) {
+        if (can.createDocument) {
           filtered.push({
             type: "route",
-            to: newDocumentPath(collection.id, {
-              template: true,
-            }),
+            to: newTemplatePath(collection.id),
             title: <CollectionName>{collection.name}</CollectionName>,
             icon: <CollectionIcon collection={collection} />,
           });

@@ -1,5 +1,4 @@
 import { Transaction } from "sequelize";
-import { sequelize } from "@server/database/sequelize";
 import Logger from "@server/logging/Logger";
 import { traceFunction } from "@server/logging/tracing";
 import {
@@ -19,6 +18,7 @@ import {
   SearchQuery,
   Share,
 } from "@server/models";
+import { sequelize } from "@server/storage/database";
 
 async function teamPermanentDeleter(team: Team) {
   if (!team.deletedAt) {
@@ -29,7 +29,7 @@ async function teamPermanentDeleter(team: Team) {
 
   Logger.info(
     "commands",
-    `Permanently deleting team ${team.name} (${team.id})`
+    `Permanently destroying team ${team.name} (${team.id})`
   );
   const teamId = team.id;
   let transaction!: Transaction;

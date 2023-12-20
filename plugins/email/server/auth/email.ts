@@ -25,13 +25,13 @@ router.post(
     const domain = parseDomain(ctx.request.hostname);
 
     let team: Team | null | undefined;
-    if (!env.isCloudHosted()) {
+    if (!env.isCloudHosted) {
       team = await Team.scope("withAuthenticationProviders").findOne();
     } else if (domain.custom) {
       team = await Team.scope("withAuthenticationProviders").findOne({
         where: { domain: domain.host },
       });
-    } else if (env.SUBDOMAINS_ENABLED && domain.teamSubdomain) {
+    } else if (domain.teamSubdomain) {
       team = await Team.scope("withAuthenticationProviders").findOne({
         where: { subdomain: domain.teamSubdomain },
       });
@@ -102,7 +102,7 @@ router.get("email.callback", async (ctx) => {
   }
 
   if (user.isSuspended) {
-    return ctx.redirect("/?notice=suspended");
+    return ctx.redirect("/?notice=user-suspended");
   }
 
   if (user.isInvited) {

@@ -20,7 +20,9 @@ declare module "styled-components" {
     scrollbarThumb: string;
     fontFamily: string;
     fontFamilyMono: string;
-    fontWeight: number;
+    fontWeightRegular: number;
+    fontWeightMedium: number;
+    fontWeightBold: number;
     link: string;
     placeholder: string;
     textSecondary: string;
@@ -79,7 +81,6 @@ declare module "styled-components" {
     accent: string;
     yellow: string;
     warmGrey: string;
-    searchHighlight: string;
     danger: string;
     warning: string;
     success: string;
