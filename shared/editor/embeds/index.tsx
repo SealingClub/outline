@@ -152,6 +152,17 @@ const embeds: EmbedDescriptor[] = [
     icon: <Img src="/images/bilibili.png" alt="Bilibili" />,
   }),
   new EmbedDescriptor({
+    title: "Camunda Modeler",
+    keywords: "bpmn process cawemo",
+    defaultHidden: true,
+    regexMatch: [
+      new RegExp("^https?://modeler.cloud.camunda.io/(?:share|embed)/(.*)$"),
+    ],
+    transformMatch: (matches: RegExpMatchArray) =>
+      `https://modeler.cloud.camunda.io/embed/${matches[1]}`,
+    icon: <Img src="/images/camunda.png" alt="Camunda" />,
+  }),
+  new EmbedDescriptor({
     title: "Canva",
     keywords: "design",
     regexMatch: [
@@ -358,8 +369,13 @@ const embeds: EmbedDescriptor[] = [
     name: IntegrationService.Grist,
     keywords: "spreadsheet",
     regexMatch: [new RegExp("^https?://([a-z.-]+\\.)?getgrist\\.com/(.+)$")],
-    transformMatch: (matches: RegExpMatchArray) =>
-      matches[0].replace(/(\?embed=true)?$/, "?embed=true"),
+    transformMatch: (matches: RegExpMatchArray) => {
+      if (matches[0].includes("style=singlePage")) {
+        return matches[0];
+      }
+
+      return matches[0].replace(/(\?embed=true)?$/, "?embed=true");
+    },
     icon: <Img src="/images/grist.png" alt="Grist" />,
   }),
   new EmbedDescriptor({

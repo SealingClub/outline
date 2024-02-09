@@ -3,7 +3,13 @@ import compact from "lodash/compact";
 import isNil from "lodash/isNil";
 import uniq from "lodash/uniq";
 import randomstring from "randomstring";
-import type { Identifier, NonNullFindOptions, SaveOptions } from "sequelize";
+import type {
+  Identifier,
+  InferAttributes,
+  InferCreationAttributes,
+  NonNullFindOptions,
+  SaveOptions,
+} from "sequelize";
 import {
   Sequelize,
   Transaction,
@@ -33,6 +39,7 @@ import {
   IsNumeric,
   IsDate,
   AllowNull,
+  BelongsToMany,
 } from "sequelize-typescript";
 import isUUID from "validator/lib/isUUID";
 import type {
@@ -52,6 +59,7 @@ import Revision from "./Revision";
 import Star from "./Star";
 import Team from "./Team";
 import User from "./User";
+import UserMembership from "./UserMembership";
 import View from "./View";
 import ParanoidModel from "./base/ParanoidModel";
 import Fix from "./decorators/Fix";
@@ -94,33 +102,20 @@ type AdditionalFindOptions = {
   },
 }))
 @Scopes(() => ({
-  withCollectionPermissions: (userId: string, paranoid = true) => {
-    if (userId) {
-      return {
-        include: [
-          {
-            attributes: ["id", "permission", "sharing", "teamId", "deletedAt"],
-            model: Collection.scope({
+  withCollectionPermissions: (userId: string, paranoid = true) => ({
+    include: [
+      {
+        attributes: ["id", "permission", "sharing", "teamId", "deletedAt"],
+        model: userId
+          ? Collection.scope({
               method: ["withMembership", userId],
-            }),
-            as: "collection",
-            paranoid,
-          },
-        ],
-      };
-    }
-
-    return {
-      include: [
-        {
-          attributes: ["id", "permission", "sharing", "teamId", "deletedAt"],
-          model: Collection,
-          as: "collection",
-          paranoid,
-        },
-      ],
-    };
-  },
+            })
+          : Collection,
+        as: "collection",
+        paranoid,
+      },
+    ],
+  }),
   withoutState: {
     attributes: {
       exclude: ["state"],
@@ -183,10 +178,29 @@ type AdditionalFindOptions = {
       ],
     };
   },
+  withMembership: (userId: string) => {
+    if (!userId) {
+      return {};
+    }
+    return {
+      include: [
+        {
+          association: "memberships",
+          where: {
+            userId,
+          },
+          required: false,
+        },
+      ],
+    };
+  },
 }))
 @Table({ tableName: "documents", modelName: "document" })
 @Fix
-class Document extends ParanoidModel {
+class Document extends ParanoidModel<
+  InferAttributes<Document>,
+  Partial<InferCreationAttributes<Document>>
+> {
   @SimpleLength({
     min: 10,
     max: 10,
@@ -208,7 +222,7 @@ class Document extends ParanoidModel {
 
   @IsNumeric
   @Column(DataType.SMALLINT)
-  version: number;
+  version?: number | null;
 
   @Default(false)
   @Column
@@ -261,7 +275,7 @@ class Document extends ParanoidModel {
     msg: `Document collaborative state is too large, you must create a new document`,
   })
   @Column(DataType.BLOB)
-  state: Uint8Array;
+  state?: Uint8Array | null;
 
   /** Whether this document is part of onboarding. */
   @Default(false)
@@ -296,16 +310,16 @@ class Document extends ParanoidModel {
    * @deprecated Use `path` instead.
    */
   get url() {
+    return this.path;
+  }
+
+  /** The frontend path to this document. */
+  get path() {
     if (!this.title) {
       return `/doc/untitled-${this.urlId}`;
     }
     const slugifiedTitle = slugify(this.title);
     return `/doc/${slugifiedTitle}-${this.urlId}`;
-  }
-
-  /** The frontend path to this document. */
-  get path() {
-    return this.url;
   }
 
   get tasks() {
@@ -387,14 +401,13 @@ class Document extends ParanoidModel {
     // ensure documents have a title
     model.title = model.title || "";
 
-    if (model.previous("title") && model.previous("title") !== model.title) {
+    const previousTitle = model.previous("title");
+    if (previousTitle && previousTitle !== model.title) {
       if (!model.previousTitles) {
         model.previousTitles = [];
       }
 
-      model.previousTitles = uniq(
-        model.previousTitles.concat(model.previous("title"))
-      );
+      model.previousTitles = uniq(model.previousTitles.concat(previousTitle));
     }
 
     // add the current user as a collaborator on this doc
@@ -493,9 +506,15 @@ class Document extends ParanoidModel {
   @BelongsTo(() => Collection, "collectionId")
   collection: Collection | null | undefined;
 
+  @BelongsToMany(() => User, () => UserMembership)
+  users: User[];
+
   @ForeignKey(() => Collection)
   @Column(DataType.UUID)
   collectionId?: string | null;
+
+  @HasMany(() => UserMembership)
+  memberships: UserMembership[];
 
   @HasMany(() => Revision)
   revisions: Revision[];
@@ -516,7 +535,15 @@ class Document extends ParanoidModel {
     const viewScope: Readonly<ScopeOptions> = {
       method: ["withViews", userId],
     };
-    return this.scope(["defaultScope", collectionScope, viewScope]);
+    const membershipScope: Readonly<ScopeOptions> = {
+      method: ["withMembership", userId],
+    };
+    return this.scope([
+      "defaultScope",
+      collectionScope,
+      viewScope,
+      membershipScope,
+    ]);
   }
 
   /**
@@ -555,6 +582,9 @@ class Document extends ParanoidModel {
       },
       {
         method: ["withViews", userId],
+      },
+      {
+        method: ["withMembership", userId],
       },
     ]);
 
@@ -780,9 +810,51 @@ class Document extends ParanoidModel {
       }
     }
 
+    const parentDocumentPermissions = this.parentDocumentId
+      ? await UserMembership.findAll({
+          where: {
+            documentId: this.parentDocumentId,
+          },
+          transaction,
+        })
+      : [];
+
+    await Promise.all(
+      parentDocumentPermissions.map((permission) =>
+        UserMembership.create(
+          {
+            documentId: this.id,
+            userId: permission.userId,
+            sourceId: permission.sourceId ?? permission.id,
+            permission: permission.permission,
+            createdById: permission.createdById,
+          },
+          {
+            transaction,
+          }
+        )
+      )
+    );
+
     this.lastModifiedById = userId;
     this.publishedAt = new Date();
     return this.save({ transaction });
+  };
+
+  isCollectionDeleted = async () => {
+    if (this.deletedAt || this.archivedAt) {
+      if (this.collectionId) {
+        const collection =
+          this.collection ??
+          (await Collection.findByPk(this.collectionId, {
+            attributes: ["deletedAt"],
+            paranoid: false,
+          }));
+
+        return !!collection?.deletedAt;
+      }
+    }
+    return false;
   };
 
   unpublish = async (userId: string) => {
@@ -851,12 +923,9 @@ class Document extends ParanoidModel {
         const parent = await (this.constructor as typeof Document).findOne({
           where: {
             id: this.parentDocumentId,
-            archivedAt: {
-              [Op.is]: null,
-            },
           },
         });
-        if (!parent) {
+        if (parent?.isDraft || !parent?.isActive) {
           this.parentDocumentId = null;
         }
       }
