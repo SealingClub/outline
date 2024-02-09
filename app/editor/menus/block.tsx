@@ -104,7 +104,6 @@ export default function blockMenuItems(dictionary: Dictionary): MenuItem[] {
     {
       name: "thread",
       title: "Thread",
-      icon: <LinkIcon />,
       keywords: "comments",
       attrs: () => ({ id: uuidv4() }),
     },
