@@ -35,22 +35,21 @@ InpageThread.prototype.component = function InpageThreadComponent(props: Compone
 
   const can = usePolicy(document.id);
   const [thread, setThread] = useState(comments.get(node.attrs.id));
-  const fetchThread = async () => {
-    var data = comments.get(node.attrs.id);
-    setThread(data)
-    if (data) return
-    data = await comments.create({
-      id: node.attrs.id,
-      documentId: document.id,
-      data: node,
-      isInpage: true,
-    })
-    setThread(data)
-  }
   useEffect(() => {
-    if (thread) return
-    fetchThread()
-  }, [fetchThread])
+    const threadLocal = comments.get(node.attrs.id)
+    if (threadLocal) {
+      setThread(threadLocal)
+      return
+    }
+    void (async () => setThread(
+      await comments.create({
+        id: node.attrs.id,
+        documentId: document.id,
+        data: node,
+        isInpage: true,
+      })
+    ))()
+  }, [setThread])
 
 
   const socket = useContext(WebsocketContext);
