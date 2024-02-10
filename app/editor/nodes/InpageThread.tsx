@@ -19,10 +19,14 @@ import { WebsocketContext } from "~/components/WebsocketProvider";
 import useCurrentUser from "~/hooks/useCurrentUser";
 import useOnClickOutside from "~/hooks/useOnClickOutside";
 import styled from "styled-components";
+import { useDocumentContext } from "~/components/DocumentContext";
+import usePersistedState from "~/hooks/usePersistedState";
+import { ProsemirrorData } from "@shared/types";
 
 // eslint-disable-next-line react/display-name
 InpageThread.prototype.component = function InpageThreadComponent(props: ComponentProps) {
   const { node } = props;
+  const { editor } = useDocumentContext();
   const { comments, documents } = useStores()
   const user = useCurrentUser();
   const { t } = useTranslation();
@@ -70,7 +74,17 @@ InpageThread.prototype.component = function InpageThreadComponent(props: Compone
     if (focused) setFocused(false)
   });
 
+  const [draft, onSaveDraft] = usePersistedState<ProsemirrorData | undefined>(
+    `draft-${document.id}-${thread?.id}`,
+    undefined
+  );
+
   if (!thread) return <div>no comments available</div>
+
+  const highlightedCommentMarks = editor
+    ?.getComments()
+    .filter((comment) => comment.id === thread.id);
+  const highlightedText = highlightedCommentMarks?.map((c) => c.text).join("");
 
   const commentsInThread = comments
     .inThreadInpageOnly(thread?.id ?? '')
@@ -92,7 +106,9 @@ InpageThread.prototype.component = function InpageThreadComponent(props: Compone
 
       return (
         <CommentThreadItem
+          highlightedText={index === 0 ? highlightedText : undefined}
           comment={comment}
+          onDelete={() => editor?.removeComment(comment.id)}
           key={comment.id}
           firstOfThread={index === 0}
           lastOfThread={index === commentsInThread.length - 1}
@@ -117,6 +133,8 @@ InpageThread.prototype.component = function InpageThreadComponent(props: Compone
       {(focused || commentsInThread.length === 0) && can.comment && (
         <Fade timing={100}>
           <StyledCommentForm
+            onSaveDraft={onSaveDraft}
+            draft={draft}
             documentId={document.id}
             thread={thread}
             onTyping={setIsTyping}
