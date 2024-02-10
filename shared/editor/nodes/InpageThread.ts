@@ -1,4 +1,4 @@
-import { Node as ProsemirrorNode, NodeSpec, NodeType } from "prosemirror-model";
+import { Node as ProsemirrorNode, NodeSpec, NodeType, AttributeSpec } from "prosemirror-model";
 import { Primitive } from "utility-types";
 import Node from "./Node";
 import Token from "markdown-it/lib/token";
@@ -15,18 +15,17 @@ export default class InpageThread extends Node {
   get schema(): NodeSpec {
     return {
       attrs: {
-        id: {
-        }
+        id: {}
       },
       group: "block",
       atom: true,
       draggable: false,
-      selectable: true,
+      selectable: false,
       parseDOM: [
         {
           tag: "div.inpage-thread",
           getAttrs: (dom: HTMLDivElement) => ({
-            id: dom.id.replace("inpage-thread-", ""),
+            id: dom.id.slice("inpage-thread-".length),
           }),
         },
       ],
