@@ -38,12 +38,19 @@ InpageThread.prototype.component = function InpageThreadComponent(
   const can = usePolicy(document.id);
   const [thread, setThread] = useState(comments.get(node.attrs.id));
   useEffect(() => {
-    const threadLocal = comments.get(node.attrs.id);
-    if (threadLocal) {
-      setThread(threadLocal);
+    if (thread) {
       return;
     }
-    void (async () =>
+    void (async () => {
+      try {
+        const threadLocal = await comments.fetch(node.attrs.id);
+        if (threadLocal) {
+          setThread(threadLocal);
+          return;
+        }
+      } catch {
+        /* ignore if fetch failed */
+      }
       setThread(
         await comments.create({
           id: node.attrs.id,
@@ -51,7 +58,8 @@ InpageThread.prototype.component = function InpageThreadComponent(
           data: node,
           isInpage: true,
         })
-      ))();
+      );
+    })();
   }, [comments, setThread, document, node]);
 
   const socket = useContext(WebsocketContext);
