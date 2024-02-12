@@ -11,8 +11,8 @@ import Gist from "./Gist";
 import GitLabSnippet from "./GitLabSnippet";
 import InVision from "./InVision";
 import JSFiddle from "./JSFiddle";
-import NetEaseCloudMusic from "./NetEaseCloudMusic";
 import Linkedin from "./Linkedin";
+import NetEaseCloudMusic from "./NetEaseCloudMusic";
 import Spotify from "./Spotify";
 import Trello from "./Trello";
 import Vimeo from "./Vimeo";
@@ -143,12 +143,11 @@ const embeds: EmbedDescriptor[] = [
   new EmbedDescriptor({
     title: "Bilibili",
     keywords: "video",
-    defaultHidden: true,
     regexMatch: [
       /(?:https?:\/\/)?(www\.bilibili\.com)\/video\/([\w\d]+)?(\?\S+)?/i,
     ],
     transformMatch: (matches: RegExpMatchArray) =>
-      `https://player.bilibili.com/player.html?bvid=${matches[2]}&page=1&high_quality=1`,
+      `https://player.bilibili.com/player.html?bvid=${matches[2]}&page=1&high_quality=1&autoplay=0`,
     icon: <Img src="/images/bilibili.png" alt="Bilibili" />,
   }),
   new EmbedDescriptor({
@@ -478,9 +477,13 @@ const embeds: EmbedDescriptor[] = [
   new EmbedDescriptor({
     title: "NetEaseCloudMusic",
     keywords: "wyy",
-    defaultHidden: true,
-    icon: <Img src="/images/wyy.png" alt="Wyy" />,
+    regexMatch: [
+      new RegExp(
+        /(?:https?:\/\/)?(music\.163\.com)(\/|\/#\/)song\?id=([0-9]+)[\S]?/gi
+      ),
+    ],
     component: NetEaseCloudMusic,
+    icon: <Img src="/images/wyy.png" alt="Wyy" />,
   }),
   new EmbedDescriptor({
     title: "Otter.ai",

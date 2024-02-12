@@ -1,18 +1,22 @@
 import * as React from "react";
+import styled from "styled-components";
 import Frame from "../components/Frame";
 import { EmbedProps as Props } from ".";
 
-const URL_REGEX =
-  /(?:https?:\/\/)?(music\.163\.com)(\/|\/#\/)song\?id=([0-9]+)[\S]?/gi;
-// https://music.163.com/song?id=1308778268&
+const WYMusicFrame = styled(Frame)`
+  border-radius: 13px;
+`;
 
-export default function NetEaseCloudMusic(props: Props) {
-  const { matches } = props.attrs;
+export default function NetEaseCloudMusic({ matches, ...props }: Props) {
   const musicId: string = matches[0];
+  const isDarkTheme =
+    window.localStorage && window.localStorage.getItem("theme") === '"dark"';
   return (
-    <Frame
+    <WYMusicFrame
       {...props}
-      src={`https://music.163.com/outchain/player?type=2&id=${musicId}&auto=0&height=66`}
+      src={`https://music.163.com/outchain/player?type=2&id=${musicId}&auto=0&height=66${
+        isDarkTheme ? "&bg=111319" : ""
+      }`}
       title={`NetEaseCloudMusic Embed (${musicId})`}
       frameBorder="no"
       marginWidth="0"
@@ -22,5 +26,3 @@ export default function NetEaseCloudMusic(props: Props) {
     />
   );
 }
-
-NetEaseCloudMusic.ENABLED = [URL_REGEX];
