@@ -69,29 +69,12 @@ async function build() {
       "cp .\\server\\static\\error.prod.html .\\build\\server\\error.prod.html"
     ),
     execAsync("cp package.json .\\build"),
-    ...d.map(async (plugin) => {
-      // execAsync(
-      //   `mkdir -p .\\build\\plugins\\${plugin}`
-      // ),
+    ...d.map(async (plugin) =>
       execAsync(
         `cp .\\plugins\\${plugin}\\plugin.json .\\build\\plugins\\${plugin}\\plugin.json`
       )
-    }
     ),
-    execAsync("cp -R .\\tauri_app .\\build\\tauri_app"),
-    execAsync("cp -R .\\build\\app\\index.html .\\build\\tauri_app\\index.html"),
-    execAsync("cp -R .\\build\\app\\ .\\build\\tauri_app\\static"),
-    execAsync("rm -rf .\\build\\tauri_app\\static\\images"),
-    execAsync("cp -R .\\build\\app\\images .\\build\\tauri_app\\images"),
   ]);
-
-  const i18n = getDirectories("./shared/i18n/locales")
-  await Promise.all(
-    i18n.map(async (lang) => {
-      execAsync(`cp -R .\\build\\shared\\i18n\\locales\\${lang}\\translation.json .\\build\\tauri_app\\locales\\${lang}.json`)
-    }
-    )
-  )
 
   console.log("Done!");
 }

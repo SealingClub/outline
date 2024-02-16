@@ -31,7 +31,7 @@
     "vite:dev": "VITE_CJS_IGNORE_WARNING=true vite",
     "vite:build": "VITE_CJS_IGNORE_WARNING=true vite build",
     "vite:preview": "VITE_CJS_IGNORE_WARNING=true vite preview",
-    "build:win": "yarn clean && vite:build && yarn build:i18n:win && yarn build:server:win",
+    "build:win": "yarn clean && vite build && yarn build:i18n:win && yarn build:server:win",
     "build:i18n:win": "i18next --silent '{shared,app,server,plugins}/**/*.{ts,tsx}' && yarn copy:i18n:win",
     "copy:i18n:win": "mkdir .\\build\\shared\\i18n && cp -R .\\shared\\i18n\\locales .\\build\\shared\\i18n",
     "build:server:win": "node ./build_win.js"
@@ -52,6 +52,7 @@
   ],
   "dependencies": {
     "@babel/core": "^7.23.7",
+    "@babel/plugin-proposal-class-properties": "^7.18.6",
     "@babel/plugin-proposal-decorators": "^7.23.2",
     "@babel/plugin-transform-destructuring": "^7.23.3",
     "@babel/plugin-transform-regenerator": "^7.23.3",
