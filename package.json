@@ -30,7 +30,11 @@
     "test:server": "TZ=UTC jest --config=.jestconfig.json --selectProjects server",
     "vite:dev": "VITE_CJS_IGNORE_WARNING=true vite",
     "vite:build": "VITE_CJS_IGNORE_WARNING=true vite build",
-    "vite:preview": "VITE_CJS_IGNORE_WARNING=true vite preview"
+    "vite:preview": "VITE_CJS_IGNORE_WARNING=true vite preview",
+    "build:win": "yarn clean && vite:build && yarn build:i18n:win && yarn build:server:win",
+    "build:i18n:win": "i18next --silent '{shared,app,server,plugins}/**/*.{ts,tsx}' && yarn copy:i18n:win",
+    "copy:i18n:win": "mkdir .\\build\\shared\\i18n && cp -R .\\shared\\i18n\\locales .\\build\\shared\\i18n",
+    "build:server:win": "node ./build_win.js"
   },
   "funding": {
     "type": "GitHub Sponsors ❤",
