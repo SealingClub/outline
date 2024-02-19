@@ -120,6 +120,9 @@ export async function signIn(
         `${team.url}/auth/redirect?token=${user.getTransferToken()}`
       );
     }
+  } else if (ctx.header["user-agent"]?.includes("Prosit")) {
+    // custom tauri client
+    ctx.redirect(`http://prosit.localhost/accessToken?accessToken=${user.getJwtToken(expires)}`);
   } else {
     ctx.cookies.set("accessToken", user.getJwtToken(expires), {
       sameSite: "lax",
