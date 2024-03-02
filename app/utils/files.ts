@@ -2,6 +2,7 @@ import invariant from "invariant";
 import { AttachmentPreset } from "@shared/types";
 import { client } from "./ApiClient";
 import Logger from "./Logger";
+import Desktop from "./Desktop";
 
 type UploadOptions = {
   /** The user facing name of the file */
@@ -46,7 +47,31 @@ export const uploadFile = async (
     formData.append("file", file);
   }
 
+
+  if(Desktop.isProsit()) {
+    let uploadUrl = data.uploadUrl.replace("https://hihuu.club/", "http://prosit.localhost/");
+    // avoid to use multipart, see https://github.com/MicrosoftEdge/WebView2Feedback/issues/2162
+    const request = new Request(uploadUrl, {
+      method: "POST",
+      body: formData,
+    });
+    const buffer = await request.arrayBuffer();
+    const headers = request.headers;
+    const response = await fetch(uploadUrl,{ 
+      mode:"cors",
+      method:"POST",
+      body:buffer,
+      headers
+    });
+    if(response.status >= 200 && response.status < 400){
+      return attachment;
+    } else {
+      throw new Error("Upload failed");
+    }
+  }
+
   // Using XMLHttpRequest instead of fetch because fetch doesn't support progress
+  // 似乎没有进度条这么个玩意...
   const xhr = new XMLHttpRequest();
   const success = await new Promise((resolve) => {
     xhr.upload.addEventListener("progress", (event) => {

@@ -30,6 +30,13 @@ export default class Desktop {
   }
 
   /**
+   * Returns true if the client is running in a prosit app.
+   */
+  static isProsit() {
+    return navigator?.userAgent?.includes("Prosit");
+  }
+
+  /**
    * The bridge provides secure access to API's in desktop wrapper.
    */
   static bridge = window.DesktopBridge;
