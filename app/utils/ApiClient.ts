@@ -20,6 +20,8 @@ import {
   UpdateRequiredError,
 } from "./errors";
 
+import Desktop  from "~/utils/Desktop";
+
 type Options = {
   baseUrl?: string;
 };
@@ -95,6 +97,10 @@ class ApiClient {
     }
 
     const headers = new Headers(headerOptions);
+    if (Desktop.isProsit() && options.download) {
+      console.log("try to disable rediection");
+      headers.append("X-Prosit-Download", "true");
+    }
     const timeStart = window.performance.now();
     let response;
 
@@ -107,6 +113,7 @@ class ApiClient {
         credentials: "same-origin",
         cache: "no-cache",
       });
+
     } catch (err) {
       if (window.navigator.onLine) {
         throw new NetworkError("A network error occurred, try again?");

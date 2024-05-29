@@ -25,6 +25,8 @@ import Squircle from "../Squircle";
 import Text from "../Text";
 import Tooltip from "../Tooltip";
 import { StyledListItem } from "./MemberListItem";
+import Desktop  from "~/utils/Desktop";
+
 
 type Props = {
   /** The document to share. */
@@ -175,7 +177,7 @@ function PublicAccess({ document, share, sharedParent }: Props) {
               <DomainPrefix
                 readOnly
                 onClick={() => inputRef.current?.focus()}
-                value={env.URL.replace(/https?:\/\//, "") + "/s/"}
+                value={Desktop.isProsit()? "hihuu.club/s/" : env.URL.replace(/https?:\/\//, "") + "/s/"}
               />
             }
           >

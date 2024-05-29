@@ -30,8 +30,8 @@ async function build() {
   console.log("Clean previous build…");
 
   await Promise.all([
-    execAsync("rm -rf .\\build\\server"),
-    execAsync("rm -rf .\\build\\plugins"),
+    execAsync("erase /S /Q .\\build\\server"),
+    execAsync("erase /S /Q .\\build\\plugins"),
   ]);
 
   const d = getDirectories("./plugins");
@@ -60,18 +60,18 @@ async function build() {
   console.log("Copying static files…");
   await Promise.all([
     execAsync(
-      "cp .\\server\\collaboration\\Procfile .\\build\\server\\collaboration\\Procfile"
+      "copy .\\server\\collaboration\\Procfile .\\build\\server\\collaboration\\Procfile > NUL"
     ),
     execAsync(
-      "cp .\\server\\static\\error.dev.html .\\build\\server\\error.dev.html"
+      "copy .\\server\\static\\error.dev.html .\\build\\server\\error.dev.html > NUL"
     ),
     execAsync(
-      "cp .\\server\\static\\error.prod.html .\\build\\server\\error.prod.html"
+      "copy .\\server\\static\\error.prod.html .\\build\\server\\error.prod.html > NUL"
     ),
-    execAsync("cp package.json .\\build"),
+    execAsync("copy package.json .\\build > NUL"),
     ...d.map(async (plugin) =>
       execAsync(
-        `cp .\\plugins\\${plugin}\\plugin.json .\\build\\plugins\\${plugin}\\plugin.json`
+        `copy .\\plugins\\${plugin}\\plugin.json .\\build\\plugins\\${plugin}\\plugin.json > NUL`
       )
     ),
   ]);

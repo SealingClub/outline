@@ -33,7 +33,7 @@
     "vite:preview": "VITE_CJS_IGNORE_WARNING=true vite preview",
     "build:win": "yarn clean && vite build && yarn build:i18n:win && yarn build:server:win",
     "build:i18n:win": "i18next --silent '{shared,app,server,plugins}/**/*.{ts,tsx}' && yarn copy:i18n:win",
-    "copy:i18n:win": "mkdir .\\build\\shared\\i18n && cp -R .\\shared\\i18n\\locales .\\build\\shared\\i18n",
+    "copy:i18n:win": "mkdir .\\build\\shared\\i18n && xcopy /E /I .\\shared\\i18n\\locales .\\build\\shared\\i18n > NUL",
     "build:server:win": "node ./build_win.js"
   },
   "funding": {

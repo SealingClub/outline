@@ -4,6 +4,8 @@ import Comment from "~/models/Comment";
 import Document from "~/models/Document";
 import env from "~/env";
 
+import Desktop from "./Desktop";
+
 export function homePath(): string {
   return env.ROOT_SHARE_ID ? "/" : "/home";
 }
@@ -124,7 +126,7 @@ export function sharedDocumentPath(shareId: string, docPath?: string) {
 }
 
 export function urlify(path: string): string {
-  return `${window.location.origin}${path}`;
+  return Desktop.isProsit()? `https://hihuu.club${path}`:`${window.location.origin}${path}`;
 }
 
 export const matchDocumentSlug =

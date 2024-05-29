@@ -30,6 +30,7 @@ import {
 } from "~/types";
 import { AuthorizationError, NotFoundError } from "~/utils/errors";
 import { getVisibilityListener, getPageVisible } from "~/utils/pageVisibility";
+import env from "~/env";
 
 type SocketWithAuthentication = Socket & {
   authenticated?: boolean;
@@ -70,7 +71,7 @@ class WebsocketProvider extends React.Component<Props> {
   };
 
   createConnection = () => {
-    this.socket = io(window.location.origin, {
+    this.socket = io(env.COLLABORATION_URL, {
       path: "/realtime",
       transports: ["websocket"],
       reconnectionDelay: 1000,
