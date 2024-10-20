@@ -56,6 +56,12 @@ class Comment extends Model {
   @Relation(() => Document, { onDelete: "cascade" })
   document: Document;
 
+  @Field
+  @observable
+  isInpage: boolean;
+
+  createdAt: string;
+
   /**
    * The user who created this comment.
    */

@@ -44,6 +44,7 @@ import { ProsemirrorHelper } from "@shared/utils/ProsemirrorHelper";
 import EventEmitter from "@shared/utils/events";
 import Flex from "~/components/Flex";
 import { PortalContext } from "~/components/Portal";
+import ExtentedExtensions from "~/editor/nodes";
 import { Dictionary } from "~/hooks/useDictionary";
 import Logger from "~/utils/Logger";
 import ComponentView from "./components/ComponentView";
@@ -53,6 +54,8 @@ import LinkToolbar from "./components/LinkToolbar";
 import { NodeViewRenderer } from "./components/NodeViewRenderer";
 import SelectionToolbar from "./components/SelectionToolbar";
 import WithTheme from "./components/WithTheme";
+
+ExtentedExtensions();
 
 export type Props = {
   /** An optional identifier for the editor context. It is used to persist local settings */
@@ -200,6 +203,7 @@ export class Editor extends React.PureComponent<
   rulePlugins: PluginSimple[];
   events = new EventEmitter();
   mutationObserver?: MutationObserver;
+  portals = new Map<string, () => React.ReactPortal>();
 
   public constructor(props: Props & ThemeProps<DefaultTheme>) {
     super(props);

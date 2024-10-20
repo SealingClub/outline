@@ -1,0 +1,9 @@
+version: "1"
+rules:
+  - base: main
+    upstream: outline:main
+    beforeHead:
+      byDate: 2
+      byPush: 3
+      byTilde: 7
+      useOlder: true

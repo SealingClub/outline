@@ -4,7 +4,6 @@
 <p align="center">
   <i>A fast, collaborative, knowledge base for your team built using React and Node.js.<br/>Try out Outline using our hosted version at <a href="https://www.getoutline.com">www.getoutline.com</a>.</i>
   <br/>
-  <img width="1640" alt="screenshot" src="https://user-images.githubusercontent.com/380914/110356468-26374600-7fef-11eb-9f6a-f2cc2c8c6590.png">
 </p>
 <p align="center">
   <a href="https://circleci.com/gh/outline/outline" rel="nofollow"><img src="https://circleci.com/gh/outline/outline.svg?style=shield"></a>
@@ -27,6 +26,71 @@ If you have questions or improvements for the docs please create a thread in [Gi
 # Development
 
 There is a short guide for [setting up a development environment](https://docs.getoutline.com/s/hosting/doc/local-development-5hEhFRXow7) if you wish to contribute changes, fixes, and improvements to Outline.
+
+## For windows
+
+查文档发现这东西不支持在windows上直接开发（悲），但是我们在Windows下还是有最好用的linux开放环境——wsl的（逃
+
+### 依赖
+
+* wsl
+* docker for desktop
+* nodejs （在wsl中）
+* yarn （在wsl中）
+
+首先打开wsl（这个东西应该在你安装docker的时候默认就安装了），你最好搞个发行版的wsl（可以在Microsoft商店获取，这是这个应用商店为数不多好用的时候
+
+进入wsl，按照nodejs
+
+然后使用
+
+```shell
+corepack enable
+```
+就可以开启yarn了
+
+### 开发环境
+
+建议使用vscode之类的东西连接wsl
+
+首先clone一下
+
+```shell
+git clone git@sealclub.wiki:WannaR/outline4sealclub.git
+```
+
+然后运行
+
+```shell
+cd outline4sealclub
+cp .env.sample .env
+```
+
+这个时候需要对`.env`文件进行一些配置。需要修改的配置如下
+
+```shell
+NODE_ENV=development
+
+SECRET_KEY=`openssl rand -hex 32`
+UTILS_SECRET=`openssl rand -hex 32`
+```
+改好之后运行
+
+```shell
+make up
+```
+
+就可以开始了开发了，so easy，如果你使用vscode之类的玩意，应该已经自动做了端口转发，否则你可能还需要改配置文件中的`URL`
+如果make up报错` - IFRAMELY_URL 不能为空`之类的东西，就去env文件里面把报错项注释掉就好
+
+此时使用
+
+```shell
+node build/server/scripts/seed.js example@mail.com
+```
+
+可以生成一个临时的访问账户，无需配置oidc等登录服务。
+其余内容参看[setting up a development environment](https://docs.getoutline.com/s/hosting/doc/local-development-5hEhFRXow7)(其实没什么好看的)
 
 ## Contributing
 

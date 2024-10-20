@@ -84,6 +84,9 @@ class Comment extends ParanoidModel<
   @Column(DataType.UUID)
   parentCommentId: string;
 
+  @Column(DataType.BOOLEAN)
+  isInpage: boolean;
+
   // methods
 
   /**

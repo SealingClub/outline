@@ -33,7 +33,9 @@ export const CommentsCreateSchema = BaseSchema.extend({
     parentCommentId: z.string().uuid().optional(),
 
     /** Create comment with this data */
-    data: ProsemirrorSchema(),
+    /** Allow empty for inPageThread  */
+    data: ProsemirrorSchema({ allowEmpty: true }),
+    isInpage: z.boolean().optional(),
   }),
 });
 

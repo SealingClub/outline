@@ -42,6 +42,7 @@ export default class ComponentView {
   isSelected = false;
   /** The DOM element that the node is rendered into. */
   dom: HTMLElement | null;
+  // portalId = uuidv4();
 
   // See https://prosemirror.net/docs/ref/#view.NodeView
   constructor(

@@ -14,6 +14,7 @@ import GitLabSnippet from "./GitLabSnippet";
 import InVision from "./InVision";
 import JSFiddle from "./JSFiddle";
 import Linkedin from "./Linkedin";
+import NetEaseCloudMusic from "./NetEaseCloudMusic";
 import Spotify from "./Spotify";
 import Trello from "./Trello";
 import Vimeo from "./Vimeo";
@@ -155,7 +156,6 @@ const embeds: EmbedDescriptor[] = [
   new EmbedDescriptor({
     title: "Bilibili",
     keywords: "video",
-    defaultHidden: true,
     regexMatch: [
       /(?:https?:\/\/)?(www\.bilibili\.com)\/video\/([\w\d]+)?(\?\S+)?/i,
     ],
@@ -507,6 +507,17 @@ const embeds: EmbedDescriptor[] = [
     transformMatch: (matches: RegExpMatchArray) =>
       `${matches[0].replace(/\/embed$/, "")}/embed`,
     icon: <Img src="/images/mode-analytics.png" alt="Mode" />,
+  }),
+  new EmbedDescriptor({
+    title: "NetEaseCloudMusic",
+    keywords: "wyy",
+    regexMatch: [
+      new RegExp(
+        /(?:https?:\/\/)?(music\.163\.com)(\/|\/#\/)song\?id=([0-9]+)[\S]?/gi
+      ),
+    ],
+    component: NetEaseCloudMusic,
+    icon: <Img src="/images/wyy.png" alt="Wyy" />,
   }),
   new EmbedDescriptor({
     title: "Otter.ai",
