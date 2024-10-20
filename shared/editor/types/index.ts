@@ -8,9 +8,11 @@ import { Primitive } from "utility-types";
 export type PlainTextSerializer = (node: ProsemirrorNode) => string;
 
 export enum EventType {
-  SuggestionsMenuOpen = "suggestionMenuOpen",
-  SuggestionsMenuClose = "suggestionMenuClose",
   LinkToolbarOpen = "linkMenuOpen",
+}
+
+export enum TableLayout {
+  fullWidth = "full-width",
 }
 
 export type MenuItem = {
@@ -21,6 +23,7 @@ export type MenuItem = {
   keywords?: string;
   tooltip?: string;
   label?: string;
+  dangerous?: boolean;
   children?: MenuItem[];
   defaultHidden?: boolean;
   attrs?:

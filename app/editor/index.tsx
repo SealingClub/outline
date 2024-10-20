@@ -1,9 +1,10 @@
 /* global File Promise */
 import { PluginSimple } from "markdown-it";
-import { transparentize } from "polished";
+import { darken, transparentize } from "polished";
 import { baseKeymap } from "prosemirror-commands";
 import { dropCursor } from "prosemirror-dropcursor";
 import { gapCursor } from "prosemirror-gapcursor";
+import { redo, undo } from "prosemirror-history";
 import { inputRules, InputRule } from "prosemirror-inputrules";
 import { keymap } from "prosemirror-keymap";
 import { MarkdownParser } from "prosemirror-markdown";
@@ -37,9 +38,9 @@ import Mark from "@shared/editor/marks/Mark";
 import { basicExtensions as extensions } from "@shared/editor/nodes";
 import Node from "@shared/editor/nodes/Node";
 import ReactNode from "@shared/editor/nodes/ReactNode";
-import { EventType } from "@shared/editor/types";
-import { UserPreferences } from "@shared/types";
-import ProsemirrorHelper from "@shared/utils/ProsemirrorHelper";
+import { ComponentProps, EventType } from "@shared/editor/types";
+import { ProsemirrorData, UserPreferences } from "@shared/types";
+import { ProsemirrorHelper } from "@shared/utils/ProsemirrorHelper";
 import EventEmitter from "@shared/utils/events";
 import Flex from "~/components/Flex";
 import { PortalContext } from "~/components/Portal";
@@ -50,18 +51,21 @@ import ComponentView from "./components/ComponentView";
 import EditorContext from "./components/EditorContext";
 import { SearchResult } from "./components/LinkEditor";
 import LinkToolbar from "./components/LinkToolbar";
+import { NodeViewRenderer } from "./components/NodeViewRenderer";
 import SelectionToolbar from "./components/SelectionToolbar";
 import WithTheme from "./components/WithTheme";
+
+ExtentedExtensions();
 
 ExtentedExtensions();
 
 export type Props = {
   /** An optional identifier for the editor context. It is used to persist local settings */
   id?: string;
-  /** The current userId, if any */
+  /** The user id of the current user */
   userId?: string;
   /** The editor content, should only be changed if you wish to reset the content */
-  value?: string;
+  value?: string | ProsemirrorData;
   /** The initial editor content as a markdown string or JSON object */
   defaultValue: string | object;
   /** Placeholder displayed when the editor is empty */
@@ -194,13 +198,13 @@ export class Editor extends React.PureComponent<
   };
 
   widgets: { [name: string]: (props: WidgetProps) => React.ReactElement };
+  renderers: Set<NodeViewRenderer<ComponentProps>> = new Set();
   nodes: { [name: string]: NodeSpec };
   marks: { [name: string]: MarkSpec };
   commands: Record<string, CommandFactory>;
   rulePlugins: PluginSimple[];
   events = new EventEmitter();
   mutationObserver?: MutationObserver;
-  portals = new Map<string, () => React.ReactPortal>();
 
   public constructor(props: Props & ThemeProps<DefaultTheme>) {
     super(props);
@@ -393,7 +397,7 @@ export class Editor extends React.PureComponent<
   private createPasteParser() {
     return this.extensions.parser({
       schema: this.schema,
-      rules: { linkify: true, emoji: false },
+      rules: { linkify: true },
       plugins: this.rulePlugins,
     });
   }
@@ -405,8 +409,8 @@ export class Editor extends React.PureComponent<
       schema: this.schema,
       doc,
       plugins: [
-        ...this.plugins,
         ...this.keymaps,
+        ...this.plugins,
         dropCursor({
           color: this.props.theme.cursor,
         }),
@@ -438,7 +442,7 @@ export class Editor extends React.PureComponent<
         (step) =>
           (step instanceof ReplaceAroundStep || step instanceof ReplaceStep) &&
           step.slice.content?.firstChild?.type.name ===
-          this.schema.nodes.checkbox_item.name
+            this.schema.nodes.checkbox_item.name
       );
 
     const isEditingComment = (tr: Transaction) =>
@@ -460,11 +464,14 @@ export class Editor extends React.PureComponent<
       state: this.createState(this.props.value),
       editable: () => !this.props.readOnly,
       nodeViews: this.nodeViews,
-      dispatchTransaction(transaction) {
+      dispatchTransaction(this: EditorView, transaction) {
+        if (this.isDestroyed) {
+          return;
+        }
+
         // callback is bound to have the view instance as its this binding
-        const { state, transactions } = (
-          this.state as EditorState
-        ).applyTransaction(transaction);
+        const { state, transactions } =
+          this.state.applyTransaction(transaction);
 
         this.updateState(state);
 
@@ -562,6 +569,14 @@ export class Editor extends React.PureComponent<
   };
 
   /**
+   * Focus the editor and scroll to the current selection.
+   */
+  public focus = () => {
+    this.view.focus();
+    this.view.dispatch(this.view.state.tr.scrollIntoView());
+  };
+
+  /**
    * Blur the editor.
    */
   public blur = () => {
@@ -591,6 +606,20 @@ export class Editor extends React.PureComponent<
     );
 
   /**
+   * Undo the last change in the editor.
+   *
+   * @returns True if the undo was successful
+   */
+  public undo = () => undo(this.view.state, this.view.dispatch, this.view);
+
+  /**
+   * Redo the last change in the editor.
+   *
+   * @returns True if the change was successful
+   */
+  public redo = () => redo(this.view.state, this.view.dispatch, this.view);
+
+  /**
    * Returns true if the trimmed content of the editor is an empty string.
    *
    * @returns True if the editor is empty
@@ -602,7 +631,15 @@ export class Editor extends React.PureComponent<
    *
    * @returns A list of headings in the document
    */
-  public getHeadings = () => ProsemirrorHelper.getHeadings(this.view.state.doc);
+  public getHeadings = () =>
+    ProsemirrorHelper.getHeadings(this.view.state.doc, this.schema);
+
+  /**
+   * Return the images in the current editor.
+   *
+   * @returns A list of images in the document
+   */
+  public getImages = () => ProsemirrorHelper.getImages(this.view.state.doc);
 
   /**
    * Return the tasks/checkmarks in the current editor.
@@ -619,29 +656,63 @@ export class Editor extends React.PureComponent<
   public getComments = () => ProsemirrorHelper.getComments(this.view.state.doc);
 
   /**
-   * Remove a specific comment mark from the document.
+   * Remove all marks related to a specific comment from the document.
    *
    * @param commentId The id of the comment to remove
    */
   public removeComment = (commentId: string) => {
     const { state, dispatch } = this.view;
-    let found = false;
+    const tr = state.tr;
+
     state.doc.descendants((node, pos) => {
-      if (!node.isInline || found) {
+      if (!node.isInline) {
         return;
       }
 
       const mark = node.marks.find(
-        (mark) =>
-          mark.type === state.schema.marks.comment &&
-          mark.attrs.id === commentId
+        (m) => m.type === state.schema.marks.comment && m.attrs.id === commentId
       );
 
       if (mark) {
-        dispatch(state.tr.removeMark(pos, pos + node.nodeSize, mark));
-        found = true;
+        tr.removeMark(pos, pos + node.nodeSize, mark);
       }
     });
+
+    dispatch(tr);
+  };
+
+  /**
+   * Update all marks related to a specific comment in the document.
+   *
+   * @param commentId The id of the comment to remove
+   * @param attrs The attributes to update
+   */
+  public updateComment = (commentId: string, attrs: { resolved: boolean }) => {
+    const { state, dispatch } = this.view;
+    const tr = state.tr;
+
+    state.doc.descendants((node, pos) => {
+      if (!node.isInline) {
+        return;
+      }
+
+      const mark = node.marks.find(
+        (m) => m.type === state.schema.marks.comment && m.attrs.id === commentId
+      );
+
+      if (mark) {
+        const from = pos;
+        const to = pos + node.nodeSize;
+        const newMark = state.schema.marks.comment.create({
+          ...mark.attrs,
+          ...attrs,
+        });
+
+        tr.removeMark(from, to, mark).addMark(from, to, newMark);
+      }
+    });
+
+    dispatch(tr);
   };
 
   /**
@@ -702,6 +773,9 @@ export class Editor extends React.PureComponent<
   };
 
   private handleOpenLinkToolbar = () => {
+    if (this.state.selectionToolbarOpen) {
+      return;
+    }
     this.setState((state) => ({
       ...state,
       linkToolbarOpen: true,
@@ -739,8 +813,10 @@ export class Editor extends React.PureComponent<
               readOnly={readOnly}
               readOnlyWriteCheckboxes={canUpdate}
               focusedCommentId={this.props.focusedCommentId}
+              userId={this.props.userId}
               editorStyle={this.props.editorStyle}
               ref={this.elementRef}
+              lang=""
             />
             {this.view && (
               <SelectionToolbar
@@ -769,9 +845,7 @@ export class Editor extends React.PureComponent<
               Object.values(this.widgets).map((Widget, index) => (
                 <Widget key={String(index)} rtl={isRTL} readOnly={readOnly} />
               ))}
-            {[...this.portals].map(([key, Component]) => (
-              <Component key={key} />
-            ))}
+            {Array.from(this.renderers).map((view) => view.content)}
           </Flex>
         </EditorContext.Provider>
       </PortalContext.Provider>
@@ -779,12 +853,31 @@ export class Editor extends React.PureComponent<
   }
 }
 
-const EditorContainer = styled(Styles) <{ focusedCommentId?: string }>`
+const EditorContainer = styled(Styles)<{
+  userId?: string;
+  focusedCommentId?: string;
+}>`
   ${(props) =>
     props.focusedCommentId &&
     css`
       #comment-${props.focusedCommentId} {
         background: ${transparentize(0.5, props.theme.brand.marine)};
+        border-bottom: 2px solid ${props.theme.commentMarkBackground};
+      }
+    `}
+
+  ${(props) =>
+    props.userId &&
+    css`
+      .mention[data-id=${props.userId}] {
+        color: ${props.theme.textHighlightForeground};
+        background: ${props.theme.textHighlight};
+
+        &.ProseMirror-selectednode {
+          outline-color: ${props.readOnly
+            ? "transparent"
+            : darken(0.2, props.theme.textHighlight)};
+        }
       }
     `}
 `;

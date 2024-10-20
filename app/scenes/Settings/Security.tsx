@@ -34,6 +34,7 @@ function Security() {
     guestSignin: team.guestSignin,
     defaultUserRole: team.defaultUserRole,
     memberCollectionCreate: team.memberCollectionCreate,
+    memberTeamCreate: team.memberTeamCreate,
     inviteRequired: team.inviteRequired,
   });
 
@@ -41,7 +42,7 @@ function Security() {
     data: providers,
     loading,
     request,
-  } = useRequest(() => authenticationProviders.fetchPage({}));
+  } = useRequest(authenticationProviders.fetchPage);
 
   React.useEffect(() => {
     if (!providers && !loading) {
@@ -275,6 +276,19 @@ function Security() {
         />
       </SettingRow>
       <SettingRow
+        label={t("Users can delete account")}
+        name={TeamPreference.MembersCanDeleteAccount}
+        description={t(
+          "When enabled, users can delete their own account from the workspace"
+        )}
+      >
+        <Switch
+          id={TeamPreference.MembersCanDeleteAccount}
+          checked={team.getPreference(TeamPreference.MembersCanDeleteAccount)}
+          onChange={handlePreferenceChange}
+        />
+      </SettingRow>
+      <SettingRow
         label={t("Rich service embeds")}
         name="documentEmbeds"
         description={t(
@@ -300,6 +314,19 @@ function Security() {
           onChange={handleChange}
         />
       </SettingRow>
+      {isCloudHosted && (
+        <SettingRow
+          label={t("Workspace creation")}
+          name="memberTeamCreate"
+          description={t("Allow editors to create new workspaces")}
+        >
+          <Switch
+            id="memberTeamCreate"
+            checked={data.memberTeamCreate}
+            onChange={handleChange}
+          />
+        </SettingRow>
+      )}
     </Scene>
   );
 }

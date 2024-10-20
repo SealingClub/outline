@@ -8,6 +8,9 @@ import {
   Client,
   CollectionPermission,
   DocumentPermission,
+  JSONValue,
+  UnfurlResourceType,
+  ProsemirrorData,
 } from "@shared/types";
 import { BaseSchema } from "@server/routes/api/schema";
 import { AccountProvisionerResult } from "./commands/accountProvisioner";
@@ -32,7 +35,7 @@ import type {
   View,
   Notification,
   Share,
-  GroupPermission,
+  GroupMembership,
 } from "./models";
 
 export enum AuthenticationType {
@@ -172,13 +175,22 @@ export type DocumentEvent = BaseEvent<Document> &
           | "documents.delete"
           | "documents.permanent_delete"
           | "documents.archive"
-          | "documents.unarchive"
           | "documents.restore";
         documentId: string;
         collectionId: string;
         data: {
           title: string;
           source?: "import";
+        };
+      }
+    | {
+        name: "documents.unarchive";
+        documentId: string;
+        collectionId: string;
+        data: {
+          title: string;
+          /** Id of collection from which the document is unarchived */
+          sourceCollectionId: string;
         };
       }
     | {
@@ -216,6 +228,12 @@ export type DocumentEvent = BaseEvent<Document> &
       }
   );
 
+export type EmptyTrashEvent = {
+  name: "documents.empty_trash";
+  teamId: string;
+  actorId: string;
+};
+
 export type RevisionEvent = BaseEvent<Revision> & {
   name: "revisions.create";
   documentId: string;
@@ -243,11 +261,11 @@ export type CollectionUserEvent = BaseEvent<UserMembership> & {
   };
 };
 
-export type CollectionGroupEvent = BaseEvent<GroupPermission> & {
+export type CollectionGroupEvent = BaseEvent<GroupMembership> & {
   name: "collections.add_group" | "collections.remove_group";
   collectionId: string;
   modelId: string;
-  data: { name: string };
+  data: { name: string; membershipId: string };
 };
 
 export type DocumentUserEvent = BaseEvent<UserMembership> & {
@@ -262,6 +280,18 @@ export type DocumentUserEvent = BaseEvent<UserMembership> & {
   };
 };
 
+export type DocumentGroupEvent = BaseEvent<GroupMembership> & {
+  name: "documents.add_group" | "documents.remove_group";
+  documentId: string;
+  modelId: string;
+  data: {
+    name: string;
+    isNew?: boolean;
+    permission?: DocumentPermission;
+    membershipId: string;
+  };
+};
+
 export type CollectionEvent = BaseEvent<Collection> &
   (
     | {
@@ -273,10 +303,15 @@ export type CollectionEvent = BaseEvent<Collection> &
         };
       }
     | {
-        name: "collections.update" | "collections.delete";
+        name:
+          | "collections.update"
+          | "collections.delete"
+          | "collections.archive"
+          | "collections.restore";
         collectionId: string;
         data: {
           name: string;
+          archivedAt: string;
         };
       }
     | {
@@ -338,7 +373,7 @@ export type CommentUpdateEvent = BaseEvent<Comment> & {
   modelId: string;
   documentId: string;
   actorId: string;
-  data: {
+  data?: {
     newMentionIds: string[];
   };
 };
@@ -425,6 +460,7 @@ export type Event =
   | AuthenticationProviderEvent
   | DocumentEvent
   | DocumentUserEvent
+  | DocumentGroupEvent
   | PinEvent
   | CommentEvent
   | StarEvent
@@ -442,7 +478,8 @@ export type Event =
   | UserMembershipEvent
   | ViewEvent
   | WebhookSubscriptionEvent
-  | NotificationEvent;
+  | NotificationEvent
+  | EmptyTrashEvent;
 
 export type NotificationMetadata = {
   notificationId?: string;
@@ -465,8 +502,16 @@ export type DocumentJSONExport = {
   id: string;
   urlId: string;
   title: string;
+  /**
+   * For backward compatibility, maintain the `emoji` field.
+   * Future exports will use the `icon` field.
+   * */
+  emoji?: string | null;
+  icon: string | null;
+  color: string | null;
   data: Record<string, any>;
   createdById: string;
+  createdByName: string;
   createdByEmail: string | null;
   createdAt: string;
   updatedAt: string;
@@ -490,9 +535,10 @@ export type CollectionJSONExport = {
     id: string;
     urlId: string;
     name: string;
-    description: Record<string, any> | null;
+    data?: ProsemirrorData | null;
+    description?: ProsemirrorData | null;
     permission?: CollectionPermission | null;
-    color: string;
+    color?: string | null;
     icon?: string | null;
     sort: CollectionSort;
     documentStructure: NavigationNode[] | null;
@@ -505,6 +551,15 @@ export type CollectionJSONExport = {
   };
 };
 
-export type UnfurlResolver = {
-  unfurl: (url: string) => Promise<any>;
+export type Unfurl = { [x: string]: JSONValue; type: UnfurlResourceType };
+
+export type UnfurlSignature = (
+  url: string,
+  actor?: User
+) => Promise<Unfurl | void>;
+
+export type UninstallSignature = (integration: Integration) => Promise<void>;
+
+export type Replace<T, K extends keyof T, N extends string> = {
+  [P in keyof T as P extends K ? N : P]: T[P extends K ? K : P];
 };

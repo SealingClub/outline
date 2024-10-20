@@ -1,17 +1,14 @@
 import { AnimatePresence } from "framer-motion";
-import { observer, useLocalStore } from "mobx-react";
+import { observer } from "mobx-react";
 import * as React from "react";
 import { Switch, Route, useLocation, matchPath } from "react-router-dom";
 import { TeamPreference } from "@shared/types";
 import ErrorSuspended from "~/scenes/ErrorSuspended";
-import DocumentContext from "~/components/DocumentContext";
-import type { DocumentContextValue } from "~/components/DocumentContext";
 import Layout from "~/components/Layout";
 import RegisterKeyDown from "~/components/RegisterKeyDown";
 import Sidebar from "~/components/Sidebar";
 import SidebarRight from "~/components/Sidebar/Right";
 import SettingsSidebar from "~/components/Sidebar/Settings";
-import type { Editor as TEditor } from "~/editor";
 import useCurrentTeam from "~/hooks/useCurrentTeam";
 import usePolicy from "~/hooks/usePolicy";
 import useStores from "~/hooks/useStores";
@@ -25,6 +22,7 @@ import {
   matchDocumentSlug as slug,
   matchDocumentInsights,
 } from "~/utils/routeHelpers";
+import { DocumentContextProvider } from "./DocumentContext";
 import Fade from "./Fade";
 import { PortalContext } from "./Portal";
 
@@ -47,14 +45,9 @@ const AuthenticatedLayout: React.FC = ({ children }: Props) => {
   const { ui, auth } = useStores();
   const location = useLocation();
   const layoutRef = React.useRef<HTMLDivElement>(null);
-  const can = usePolicy(ui.activeCollectionId);
+  const can = usePolicy(ui.activeDocumentId);
+  const canCollection = usePolicy(ui.activeCollectionId);
   const team = useCurrentTeam();
-  const documentContext = useLocalStore<DocumentContextValue>(() => ({
-    editor: null,
-    setEditor: (editor: TEditor) => {
-      documentContext.editor = editor;
-    },
-  }));
 
   const goToSearch = (ev: KeyboardEvent) => {
     if (!ev.metaKey && !ev.ctrlKey) {
@@ -69,7 +62,7 @@ const AuthenticatedLayout: React.FC = ({ children }: Props) => {
       return;
     }
     const { activeCollectionId } = ui;
-    if (!activeCollectionId || !can.createDocument) {
+    if (!activeCollectionId || !canCollection.createDocument) {
       return;
     }
     history.push(newDocumentPath(activeCollectionId));
@@ -88,15 +81,18 @@ const AuthenticatedLayout: React.FC = ({ children }: Props) => {
     </Fade>
   );
 
-  const showHistory = !!matchPath(location.pathname, {
-    path: matchDocumentHistory,
-  });
-  const showInsights = !!matchPath(location.pathname, {
-    path: matchDocumentInsights,
-  });
+  const showHistory =
+    !!matchPath(location.pathname, {
+      path: matchDocumentHistory,
+    }) && can.listRevisions;
+  const showInsights =
+    !!matchPath(location.pathname, {
+      path: matchDocumentInsights,
+    }) && can.listViews;
   const showComments =
     !showInsights &&
     !showHistory &&
+    can.comment &&
     ui.activeDocumentId &&
     ui.commentsExpanded.includes(ui.activeDocumentId) &&
     team.getPreference(TeamPreference.Commenting);
@@ -121,7 +117,7 @@ const AuthenticatedLayout: React.FC = ({ children }: Props) => {
   );
 
   return (
-    <DocumentContext.Provider value={documentContext}>
+    <DocumentContextProvider>
       <PortalContext.Provider value={layoutRef.current}>
         <Layout
           title={team.name}
@@ -138,7 +134,7 @@ const AuthenticatedLayout: React.FC = ({ children }: Props) => {
           </React.Suspense>
         </Layout>
       </PortalContext.Provider>
-    </DocumentContext.Provider>
+    </DocumentContextProvider>
   );
 };
 

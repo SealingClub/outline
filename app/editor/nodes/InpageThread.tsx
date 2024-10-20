@@ -10,7 +10,7 @@ import CommentForm from "~/scenes/Document/components/CommentForm";
 import { Reply, Thread } from "~/scenes/Document/components/CommentThread";
 
 import CommentThreadItem from "~/scenes/Document/components/CommentThreadItem";
-import Avatar from "~/components/Avatar";
+import { Avatar } from "~/components/Avatar";
 import { useDocumentContext } from "~/components/DocumentContext";
 import Fade from "~/components/Fade";
 import Flex from "~/components/Flex";
@@ -43,7 +43,7 @@ InpageThread.prototype.component = function InpageThreadComponent(
     }
     void (async () => {
       try {
-        const threadLocal = await comments.fetch(node.attrs.id);
+        const threadLocal = await comments.fetch(node.attrs.id); // fetch comments.info
         if (threadLocal) {
           setThread(threadLocal);
           return;
@@ -55,12 +55,12 @@ InpageThread.prototype.component = function InpageThreadComponent(
         await comments.create({
           id: node.attrs.id,
           documentId: document.id,
-          data: node,
+          data: node.toJSON() as ProsemirrorData,
           isInpage: true,
         })
       );
     })();
-  }, [comments, setThread, document, node]);
+  }, [comments, setThread, document, node, thread]);
 
   const socket = useContext(WebsocketContext);
   const setIsTyping = useMemo(
@@ -124,6 +124,7 @@ InpageThread.prototype.component = function InpageThreadComponent(
             highlightedText={index === 0 ? highlightedText : undefined}
             comment={comment}
             onDelete={() => editor?.removeComment(comment.id)}
+            onUpdate={(attr) => editor?.updateComment(comment.id, attr)}
             key={comment.id}
             firstOfThread={index === 0}
             lastOfThread={index === commentsInThread.length - 1}

@@ -49,6 +49,25 @@ test("returns true for heading", () => {
   expect(isMarkdown(`### Heading 3`)).toBe(true);
 });
 
+test("returns true for table", () => {
+  expect(
+    isMarkdown(`
+|NAME|TYPE|CLUSTER-IP|EXTERNAL-IP|PORT(S)|AGE|
+|-|-|-|-|-|-|
+|rancher-webhook|ClusterIP|10.43.198.97|<none>|443/TCP|258d|
+|rancher|ClusterIP|10.43.50.214|<none>|80/TCP,443/TCP|258d|
+`)
+  ).toBe(true);
+
+  expect(
+    isMarkdown(`
+| Product | Price ($) | Inventory |
+|---------|----------:|----------:|
+| Laptop | 899.99 | 52 |
+| Wireless Mouse | 24.99 | 120 |`)
+  ).toBe(true);
+});
+
 test("returns false for hashtag", () => {
   expect(isMarkdown(`Test #hashtag`)).toBe(false);
   expect(isMarkdown(` #hashtag`)).toBe(false);

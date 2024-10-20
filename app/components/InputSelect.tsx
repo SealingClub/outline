@@ -23,18 +23,21 @@ import {
   Placement,
 } from "./ContextMenu";
 import { MenuAnchorCSS } from "./ContextMenu/MenuItem";
+import Separator from "./ContextMenu/Separator";
 import { LabelText } from "./Input";
 
 export type Option = {
   label: string | JSX.Element;
   value: string;
+  description?: string;
+  divider?: boolean;
 };
 
 export type Props = {
   id?: string;
   name?: string;
   value?: string | null;
-  label?: string;
+  label?: React.ReactNode;
   nude?: boolean;
   ariaLabel: string;
   short?: boolean;
@@ -46,6 +49,12 @@ export type Props = {
   /** @deprecated Removing soon, do not use. */
   note?: React.ReactNode;
   onChange?: (value: string | null) => void;
+  style?: React.CSSProperties;
+  /**
+   * Set to true if this component is rendered inside a Modal.
+   * The Modal will take care of preventing body scroll behaviour.
+   */
+  skipBodyScroll?: boolean;
 };
 
 export interface InputSelectRef {
@@ -75,6 +84,7 @@ const InputSelect = (props: Props, ref: React.RefObject<InputSelectRef>) => {
     note,
     icon,
     nude,
+    skipBodyScroll,
     ...rest
   } = props;
 
@@ -87,7 +97,7 @@ const InputSelect = (props: Props, ref: React.RefObject<InputSelectRef>) => {
   const popover = useSelectPopover({
     ...select,
     hideOnClickOutside: false,
-    preventBodyScroll: true,
+    preventBodyScroll: skipBodyScroll ? false : true,
     disabled,
   });
 
@@ -112,7 +122,7 @@ const InputSelect = (props: Props, ref: React.RefObject<InputSelectRef>) => {
 
   const wrappedLabel = <LabelText>{label}</LabelText>;
   const selectedValueIndex = options.findIndex(
-    (option) => option.value === select.selectedValue
+    (opt) => opt.value === select.selectedValue
   );
 
   // Custom click outside handling rather than using `hideOnClickOutside` from reakit so that we can
@@ -120,6 +130,9 @@ const InputSelect = (props: Props, ref: React.RefObject<InputSelectRef>) => {
   useOnClickOutside(
     contentRef,
     (event) => {
+      if (buttonRef.current?.contains(event.target as Node)) {
+        return;
+      }
       if (select.visible) {
         event.stopPropagation();
         event.preventDefault();
@@ -141,6 +154,10 @@ const InputSelect = (props: Props, ref: React.RefObject<InputSelectRef>) => {
 
   React.useEffect(() => {
     previousValue.current = value;
+
+    // Update the selected value if it changes from the outside – both of these lines are needed
+    // for correct functioning
+    select.selectedValue = value;
     select.setSelectedValue(value);
   }, [value]);
 
@@ -163,6 +180,24 @@ const InputSelect = (props: Props, ref: React.RefObject<InputSelectRef>) => {
     }
   }, [select.visible, selectedValueIndex]);
 
+  function labelForOption(opt: Option) {
+    return (
+      <>
+        {opt.label}
+        {opt.description && (
+          <>
+            &nbsp;
+            <Text as="span" type="tertiary" size="small" ellipsis>
+              – {opt.description}
+            </Text>
+          </>
+        )}
+      </>
+    );
+  }
+
+  const option = getOptionFromValue(options, select.selectedValue);
+
   return (
     <>
       <Wrapper short={short}>
@@ -174,28 +209,35 @@ const InputSelect = (props: Props, ref: React.RefObject<InputSelectRef>) => {
           ))}
 
         <Select {...select} disabled={disabled} {...rest} ref={buttonRef}>
-          {(props) => (
+          {(buttonProps) => (
             <StyledButton
               neutral
               disclosure
               className={className}
               icon={icon}
               $nude={nude}
-              {...props}
+              {...buttonProps}
             >
-              {getOptionFromValue(options, select.selectedValue)?.label || (
+              {option ? (
+                labelForOption(option)
+              ) : (
                 <Placeholder>Select a {ariaLabel.toLowerCase()}</Placeholder>
               )}
             </StyledButton>
           )}
         </Select>
-        <SelectPopover {...select} {...popover} aria-label={ariaLabel}>
-          {(props: InnerProps) => {
-            const topAnchor = props.style?.top === "0";
-            const rightAnchor = props.placement === "bottom-end";
+        <SelectPopover
+          {...select}
+          {...popover}
+          aria-label={ariaLabel}
+          preventBodyScroll={skipBodyScroll ? false : true}
+        >
+          {(popoverProps: InnerProps) => {
+            const topAnchor = popoverProps.style?.top === "0";
+            const rightAnchor = popoverProps.placement === "bottom-end";
 
             return (
-              <Positioner {...props}>
+              <Positioner {...popoverProps}>
                 <Background
                   dir="auto"
                   ref={contentRef}
@@ -215,21 +257,23 @@ const InputSelect = (props: Props, ref: React.RefObject<InputSelectRef>) => {
                   }
                 >
                   {select.visible
-                    ? options.map((option) => {
-                        const isSelected =
-                          select.selectedValue === option.value;
+                    ? options.map((opt) => {
+                        const isSelected = select.selectedValue === opt.value;
                         const Icon = isSelected ? CheckmarkIcon : Spacer;
                         return (
-                          <StyledSelectOption
-                            {...select}
-                            value={option.value}
-                            key={option.value}
-                            ref={isSelected ? selectedRef : undefined}
-                          >
-                            <Icon />
-                            &nbsp;
-                            {option.label}
-                          </StyledSelectOption>
+                          <React.Fragment key={opt.value}>
+                            {opt.divider && <Separator />}
+                            <StyledSelectOption
+                              {...select}
+                              value={opt.value}
+                              key={opt.value}
+                              ref={isSelected ? selectedRef : undefined}
+                            >
+                              <Icon />
+                              &nbsp;
+                              {labelForOption(opt)}
+                            </StyledSelectOption>
+                          </React.Fragment>
                         );
                       })
                     : null}
@@ -308,7 +352,9 @@ const Wrapper = styled.label<{ short?: boolean }>`
 `;
 
 export const Positioner = styled(Position)`
-  &.focus-visible {
+  pointer-events: all;
+
+  &:focus-visible {
     ${StyledSelectOption} {
       &[aria-selected="true"] {
         color: ${(props) => props.theme.white};

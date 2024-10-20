@@ -11,17 +11,18 @@ const isSSLDisabled = env.PGSSLMODE === "disable";
 const poolMax = env.DATABASE_CONNECTION_POOL_MAX ?? 5;
 const poolMin = env.DATABASE_CONNECTION_POOL_MIN ?? 0;
 const url = env.DATABASE_CONNECTION_POOL_URL || env.DATABASE_URL;
+const schema = env.DATABASE_SCHEMA;
 
 export function createDatabaseInstance(
-  url: string,
-  models: {
+  databaseUrl: string,
+  input: {
     [key: string]: typeof Model<
       InferAttributes<Model>,
       InferCreationAttributes<Model>
     >;
   }
 ) {
-  return new Sequelize(url, {
+  return new Sequelize(databaseUrl, {
     logging: (msg) =>
       process.env.DEBUG?.includes("database") && Logger.debug("database", msg),
     typeValidation: true,
@@ -35,13 +36,14 @@ export function createDatabaseInstance(
             }
           : false,
     },
-    models: Object.values(models),
+    models: Object.values(input),
     pool: {
       max: poolMax,
       min: poolMin,
       acquire: 30000,
       idle: 10000,
     },
+    schema,
   });
 }
 

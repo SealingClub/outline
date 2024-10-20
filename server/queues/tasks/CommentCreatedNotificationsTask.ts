@@ -2,9 +2,10 @@ import { NotificationEventType } from "@shared/types";
 import subscriptionCreator from "@server/commands/subscriptionCreator";
 import { Comment, Document, Notification, User } from "@server/models";
 import NotificationHelper from "@server/models/helpers/NotificationHelper";
-import ProsemirrorHelper from "@server/models/helpers/ProsemirrorHelper";
+import { ProsemirrorHelper } from "@server/models/helpers/ProsemirrorHelper";
 import { sequelize } from "@server/storage/database";
 import { CommentEvent } from "@server/types";
+import { canUserAccessDocument } from "@server/utils/policies";
 import BaseTask, { TaskPriority } from "./BaseTask";
 
 export default class CommentCreatedNotificationsTask extends BaseTask<CommentEvent> {
@@ -47,11 +48,13 @@ export default class CommentCreatedNotificationsTask extends BaseTask<CommentEve
       const recipient = await User.findByPk(mention.modelId);
 
       if (
+        mention.actorId &&
         recipient &&
         recipient.id !== mention.actorId &&
         recipient.subscribedToEventType(
           NotificationEventType.MentionedInComment
-        )
+        ) &&
+        (await canUserAccessDocument(recipient, document.id))
       ) {
         await Notification.create({
           event: NotificationEventType.MentionedInComment,

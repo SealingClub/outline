@@ -5,7 +5,9 @@ import FilterOptions from "~/components/FilterOptions";
 import useStores from "~/hooks/useStores";
 
 type Props = {
+  /** The currently selected collection ID */
   collectionId: string | undefined;
+  /** Callback to call when a collection is selected */
   onSelect: (key: string | undefined) => void;
 };
 
@@ -26,13 +28,15 @@ function CollectionFilter(props: Props) {
       ...collectionOptions,
     ];
   }, [collections.orderedData, t]);
+
   return (
     <FilterOptions
       options={options}
-      activeKey={collectionId}
+      selectedKeys={[collectionId]}
       onSelect={onSelect}
       defaultLabel={t("Any collection")}
       selectedPrefix={`${t("Collection")}:`}
+      showFilter
     />
   );
 }

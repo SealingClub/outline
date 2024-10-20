@@ -53,10 +53,9 @@ function Collections() {
       <Header id="collections" title={t("Collections")}>
         <Relative>
           <PaginatedList
-            fetch={collections.fetchPage}
             options={params}
             aria-label={t("Collections")}
-            items={collections.orderedData}
+            items={collections.allActive}
             loading={<PlaceholderCollections />}
             heading={
               isDraggingAnyCollection ? (
@@ -85,7 +84,7 @@ function Collections() {
   );
 }
 
-const StyledError = styled(Error)`
+export const StyledError = styled(Error)`
   font-size: 15px;
   padding: 0 8px;
 `;
