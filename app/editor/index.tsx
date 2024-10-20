@@ -57,6 +57,8 @@ import WithTheme from "./components/WithTheme";
 
 ExtentedExtensions();
 
+ExtentedExtensions();
+
 export type Props = {
   /** An optional identifier for the editor context. It is used to persist local settings */
   id?: string;
@@ -203,7 +205,6 @@ export class Editor extends React.PureComponent<
   rulePlugins: PluginSimple[];
   events = new EventEmitter();
   mutationObserver?: MutationObserver;
-  portals = new Map<string, () => React.ReactPortal>();
 
   public constructor(props: Props & ThemeProps<DefaultTheme>) {
     super(props);
