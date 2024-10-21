@@ -1,11 +1,12 @@
-import { Node as ProsemirrorNode, NodeSpec, NodeType, AttributeSpec } from "prosemirror-model";
-import { Primitive } from "utility-types";
-import Node from "./Node";
 import Token from "markdown-it/lib/token";
-import alwaysUsePrototype from "../../utils/alwaysUsePrototype";
-import type { ComponentProps } from "@shared/editor/types";
+import { Node as ProsemirrorNode, NodeSpec, NodeType } from "prosemirror-model";
 import { Command } from "prosemirror-state";
+import { Primitive } from "utility-types";
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports
+import type { ComponentProps } from "@shared/editor/types";
+import alwaysUsePrototype from "../../utils/alwaysUsePrototype";
 import { MarkdownSerializerState } from "../lib/markdown/serializer";
+import Node from "./Node";
 
 export default class InpageThread extends Node {
   get name() {
@@ -15,7 +16,7 @@ export default class InpageThread extends Node {
   get schema(): NodeSpec {
     return {
       attrs: {
-        id: {}
+        id: {},
       },
       group: "block",
       atom: true,
@@ -29,35 +30,36 @@ export default class InpageThread extends Node {
           }),
         },
       ],
-      toDOM: node => [
+      toDOM: (node) => [
         "div",
         {
           id: `inpage-thread-${node.attrs.id}`,
           class: "inpage-thread",
-        }
+        },
       ],
-      toPlainText: node => `inpage-thread-id-${node.attrs.id}`
+      toPlainText: (node) => `inpage-thread-id-${node.attrs.id}`,
     };
   }
 
   @alwaysUsePrototype
   // eslint-disable-next-line no-unused-vars
-  component(props: ComponentProps) {
-    throw new Error("The implement in @app/editor/nodes/Thread.tsx")
+  component(_props: ComponentProps) {
+    throw new Error("The implement in @app/editor/nodes/Thread.tsx");
   }
 
   commands({ type }: { type: NodeType }) {
-    return (attrs: Record<string, Primitive>): Command => (state, dispatch) => {
-      dispatch?.(state.tr.insert(state.selection.from, type.create(attrs)))
-      return true
-    }
+    return (attrs: Record<string, Primitive>): Command =>
+      (state, dispatch) => {
+        dispatch?.(state.tr.insert(state.selection.from, type.create(attrs)));
+        return true;
+      };
   }
 
   toMarkdown(state: MarkdownSerializerState, node: ProsemirrorNode): void {
-    const id = node.attrs.id
-    state.ensureNewLine()
-    state.write(`[${state.esc(id, false)}](${state.esc(id, false)})`)
-    state.ensureNewLine()
+    const id = node.attrs.id;
+    state.ensureNewLine();
+    state.write(`[${state.esc(id, false)}](${state.esc(id, false)})`);
+    state.ensureNewLine();
   }
 
   parseMarkdown() {

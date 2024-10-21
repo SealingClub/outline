@@ -6,6 +6,7 @@ import styled, { DefaultTheme } from "styled-components";
 import breakpoint from "styled-components-breakpoint";
 import { depths, s } from "@shared/styles";
 import Scrollable from "~/components/Scrollable";
+import useEventListener from "~/hooks/useEventListener";
 import useMenuContext from "~/hooks/useMenuContext";
 import useMenuHeight from "~/hooks/useMenuHeight";
 import useMobile from "~/hooks/useMobile";
@@ -38,6 +39,8 @@ export type Placement =
 
 type Props = MenuStateReturn & {
   "aria-label"?: string;
+  /** Reference to the rendered menu div element */
+  menuRef?: React.RefObject<HTMLDivElement>;
   /** The parent menu state if this is a submenu. */
   parentMenuState?: Omit<MenuStateReturn, "items">;
   /** Called when the context menu is opened. */
@@ -48,10 +51,13 @@ type Props = MenuStateReturn & {
   onClick?: (ev: React.MouseEvent) => void;
   /** The maximum width of the context menu. */
   maxWidth?: number;
+  /** The minimum height of the context menu. */
+  minHeight?: number;
   children?: React.ReactNode;
 };
 
 const ContextMenu: React.FC<Props> = ({
+  menuRef,
   children,
   onOpen,
   onClose,
@@ -105,7 +111,12 @@ const ContextMenu: React.FC<Props> = ({
   // trigger and the bottom of the window
   return (
     <>
-      <Menu hideOnClickOutside={!isMobile} preventBodyScroll={false} {...rest}>
+      <Menu
+        ref={menuRef}
+        hideOnClickOutside={!isMobile}
+        preventBodyScroll={false}
+        {...rest}
+      >
         {(props) => (
           <InnerContextMenu
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -126,6 +137,7 @@ type InnerContextMenuProps = MenuStateReturn & {
   menuProps: { style?: React.CSSProperties; placement: string };
   children: React.ReactNode;
   maxWidth?: number;
+  minHeight?: number;
 };
 
 /**
@@ -163,6 +175,32 @@ const InnerContextMenu = (props: InnerContextMenuProps) => {
     };
   }, [props.isSubMenu, props.visible]);
 
+  useEventListener(
+    "animationstart",
+    (event) => {
+      if (event.target instanceof HTMLElement) {
+        const parent = event.target.parentElement;
+        if (parent) {
+          parent.style.pointerEvents = "none";
+        }
+      }
+    },
+    backgroundRef.current
+  );
+
+  useEventListener(
+    "animationend",
+    (event) => {
+      if (event.target instanceof HTMLElement) {
+        const parent = event.target.parentElement;
+        if (parent) {
+          parent.style.pointerEvents = "auto";
+        }
+      }
+    },
+    backgroundRef.current
+  );
+
   const style =
     topAnchor && !isMobile
       ? {
@@ -185,6 +223,7 @@ const InnerContextMenu = (props: InnerContextMenuProps) => {
         <Background
           dir="auto"
           maxWidth={props.maxWidth}
+          minHeight={props.minHeight}
           topAnchor={topAnchor}
           rightAnchor={rightAnchor}
           ref={backgroundRef}
@@ -215,6 +254,32 @@ export const Position = styled.div`
   position: absolute;
   z-index: ${depths.menu};
 
+  // Note: pointer events are re-enabled after the animation ends, see event listeners above
+  pointer-events: none;
+
+  &:focus-visible {
+    transition-delay: 250ms;
+    transition-property: outline-width;
+    transition-duration: 0;
+    outline: none;
+
+    &:after {
+      content: "";
+      position: absolute;
+      top: 1px;
+      left: 1px;
+      right: 1px;
+      bottom: 1px;
+      pointer-events: none;
+      border-radius: 4px;
+
+      outline-color: ${s("accent")};
+      outline-width: initial;
+      outline-offset: -1px;
+      outline-style: solid;
+    }
+  }
+
   /*
    * overrides make mobile-first coding style challenging
    * so we explicitly define mobile breakpoint here
@@ -233,6 +298,7 @@ type BackgroundProps = {
   topAnchor?: boolean;
   rightAnchor?: boolean;
   maxWidth?: number;
+  minHeight?: number;
   theme: DefaultTheme;
 };
 
@@ -244,9 +310,8 @@ export const Background = styled(Scrollable)<BackgroundProps>`
   border-radius: 6px;
   padding: 6px;
   min-width: 180px;
-  min-height: 44px;
+  min-height: ${(props) => props.minHeight || 44}px;
   max-height: 75vh;
-  pointer-events: all;
   font-weight: normal;
 
   @media print {

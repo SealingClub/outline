@@ -1,6 +1,6 @@
 import escapeRegExp from "lodash/escapeRegExp";
 import env from "../env";
-import { RESERVED_SUBDOMAINS, getBaseDomain, parseDomain } from "./domains";
+import { parseDomain } from "./domains";
 
 /**
  * Prepends the CDN url to the given path (If a CDN is configured).
@@ -9,7 +9,7 @@ import { RESERVED_SUBDOMAINS, getBaseDomain, parseDomain } from "./domains";
  * @returns The path with the CDN url prepended.
  */
 export function cdnPath(path: string): string {
-  return `${env.CDN_URL}${path}`;
+  return `${env.CDN_URL ?? ""}${path}`;
 }
 
 /**
@@ -36,9 +36,10 @@ export function isInternalUrl(href: string) {
   const domain = parseDomain(href);
 
   return (
-    outline.host === domain.host ||
-    (domain.host.endsWith(getBaseDomain()) &&
-      !RESERVED_SUBDOMAINS.find((reserved) => domain.host.startsWith(reserved)))
+    (outline.host === domain.host && outline.port === domain.port) ||
+    (typeof window !== "undefined" &&
+      window.location.hostname === domain.host &&
+      window.location.port === domain.port)
   );
 }
 
@@ -153,4 +154,14 @@ export function urlRegex(url: string | null | undefined): RegExp | undefined {
   const urlObj = new URL(sanitizeUrl(url) as string);
 
   return new RegExp(escapeRegExp(`${urlObj.protocol}//${urlObj.host}`));
+}
+
+/**
+ * Extracts LIKELY urls from the given text, note this does not validate the urls.
+ *
+ * @param text The text to extract urls from.
+ * @returns An array of likely urls.
+ */
+export function getUrls(text: string) {
+  return Array.from(text.match(/(?:https?):\/\/[^\s]+/gi) || []);
 }

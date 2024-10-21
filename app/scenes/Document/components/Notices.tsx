@@ -1,4 +1,4 @@
-import differenceInDays from "date-fns/differenceInDays";
+import { differenceInDays } from "date-fns";
 import { TrashIcon, ArchiveIcon, ShapesIcon, InputIcon } from "outline-icons";
 import * as React from "react";
 import { Trans, useTranslation } from "react-i18next";
@@ -34,15 +34,23 @@ export default function Notices({ document, readOnly }: Props) {
       return;
     }
 
+    // if the permanently deleted date is in the past, show the current date
+    // to avoid showing a negative number of days. The cleanup task will
+    // permanently delete the document at the next run.
+    const permanentlyDeletedAt =
+      new Date(document.permanentlyDeletedAt) < new Date()
+        ? new Date().toISOString()
+        : document.permanentlyDeletedAt;
+
     return document.template ? (
       <Trans>
         This template will be permanently deleted in{" "}
-        <Days dateTime={document.permanentlyDeletedAt} /> unless restored.
+        <Days dateTime={permanentlyDeletedAt} /> unless restored.
       </Trans>
     ) : (
       <Trans>
         This document will be permanently deleted in{" "}
-        <Days dateTime={document.permanentlyDeletedAt} /> unless restored.
+        <Days dateTime={permanentlyDeletedAt} /> unless restored.
       </Trans>
     );
   }
@@ -65,7 +73,7 @@ export default function Notices({ document, readOnly }: Props) {
       {document.archivedAt && !document.deletedAt && (
         <Notice icon={<ArchiveIcon />}>
           {t("Archived by {{userName}}", {
-            userName: document.updatedBy.name,
+            userName: document.updatedBy?.name ?? t("Unknown"),
           })}
           &nbsp;
           <Time dateTime={document.updatedAt} addSuffix />
@@ -77,7 +85,7 @@ export default function Notices({ document, readOnly }: Props) {
           description={permanentlyDeletedDescription()}
         >
           {t("Deleted by {{userName}}", {
-            userName: document.updatedBy.name,
+            userName: document.updatedBy?.name ?? t("Unknown"),
           })}
           &nbsp;
           <Time dateTime={document.deletedAt} addSuffix />

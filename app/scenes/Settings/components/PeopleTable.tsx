@@ -3,7 +3,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import User from "~/models/User";
-import Avatar from "~/components/Avatar";
+import { Avatar } from "~/components/Avatar";
 import Badge from "~/components/Badge";
 import Flex from "~/components/Flex";
 import TableFromParams from "~/components/TableFromParams";
@@ -62,6 +62,8 @@ function PeopleTable({ canManage, ...rest }: Props) {
                 <Badge primary>{t("Admin")}</Badge>
               ) : row.original.isViewer ? (
                 <Badge>{t("Viewer")}</Badge>
+              ) : row.original.isGuest ? (
+                <Badge yellow>{t("Guest")}</Badge>
               ) : (
                 <Badge>{t("Editor")}</Badge>
               )}

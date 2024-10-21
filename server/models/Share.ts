@@ -17,7 +17,7 @@ import {
   Unique,
   BeforeUpdate,
 } from "sequelize-typescript";
-import { SHARE_URL_SLUG_REGEX } from "@shared/utils/urlHelpers";
+import { UrlHelper } from "@shared/utils/UrlHelper";
 import env from "@server/env";
 import { ValidationError } from "@server/errors";
 import Collection from "./Collection";
@@ -48,7 +48,12 @@ import Length from "./validators/Length";
   withCollectionPermissions: (userId: string) => ({
     include: [
       {
-        model: Document.scope("withDrafts"),
+        model: Document.scope([
+          "withDrafts",
+          {
+            method: ["withMembership", userId],
+          },
+        ]),
         paranoid: true,
         as: "document",
         include: [
@@ -96,7 +101,7 @@ class Share extends IdModel<
 
   @AllowNull
   @Is({
-    args: SHARE_URL_SLUG_REGEX,
+    args: UrlHelper.SHARE_URL_SLUG_REGEX,
     msg: "Must be only alphanumeric and dashes",
   })
   @Column

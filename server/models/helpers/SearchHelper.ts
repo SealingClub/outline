@@ -1,16 +1,20 @@
-import removeMarkdown from "@tommoor/remove-markdown";
 import invariant from "invariant";
+import escapeRegExp from "lodash/escapeRegExp";
 import find from "lodash/find";
 import map from "lodash/map";
 import queryParser from "pg-tsquery";
 import { Op, Sequelize, WhereOptions } from "sequelize";
-import { DateFilter } from "@shared/types";
+import { DateFilter, StatusFilter } from "@shared/types";
+import { regexIndexOf, regexLastIndexOf } from "@shared/utils/string";
+import { getUrls } from "@shared/utils/urls";
+import { ValidationError } from "@server/errors";
 import Collection from "@server/models/Collection";
 import Document from "@server/models/Document";
 import Share from "@server/models/Share";
 import Team from "@server/models/Team";
 import User from "@server/models/User";
 import { sequelize } from "@server/storage/database";
+import { DocumentHelper } from "./DocumentHelper";
 
 type SearchResponse = {
   results: {
@@ -22,7 +26,7 @@ type SearchResponse = {
     document: Document;
   }[];
   /** The total number of results for the search query without pagination */
-  totalCount: number;
+  total: number;
 };
 
 type SearchOptions = {
@@ -36,12 +40,12 @@ type SearchOptions = {
   share?: Share;
   /** Limit results to a date range. */
   dateFilter?: DateFilter;
+  /** Status of the documents to return */
+  statusFilter?: StatusFilter[];
+  /** Limit results to a list of documents. */
+  documentIds?: string[];
   /** Limit results to a list of users that collaborated on the document. */
   collaboratorIds?: string[];
-  /** Include archived documents in the results */
-  includeArchived?: boolean;
-  /** Include draft documents in the results (will only ever return your own) */
-  includeDrafts?: boolean;
   /** The minimum number of words to be returned in the contextual snippet */
   snippetMinWords?: number;
   /** The maximum number of words to be returned in the contextual snippet */
@@ -49,9 +53,10 @@ type SearchOptions = {
 };
 
 type RankedDocument = Document & {
-  searchRanking: number;
-  searchContext: string;
   id: string;
+  dataValues: Partial<Document> & {
+    searchRanking: number;
+  };
 };
 
 export default class SearchHelper {
@@ -65,14 +70,12 @@ export default class SearchHelper {
     query: string,
     options: SearchOptions = {}
   ): Promise<SearchResponse> {
-    const {
-      snippetMinWords = 20,
-      snippetMaxWords = 30,
-      limit = 15,
-      offset = 0,
-    } = options;
+    const { limit = 15, offset = 0 } = options;
 
-    const where = await this.buildWhere(team, options);
+    const where = await this.buildWhere(team, query, {
+      ...options,
+      statusFilter: [...(options.statusFilter || []), StatusFilter.Published],
+    });
 
     if (options.share?.includeChildDocuments) {
       const sharedDocument = await options.share.$get("document");
@@ -89,67 +92,59 @@ export default class SearchHelper {
       });
     }
 
-    where[Op.and].push(
-      Sequelize.fn(
-        `"searchVector" @@ to_tsquery`,
-        "english",
-        Sequelize.literal(":query")
-      )
-    );
-
-    const queryReplacements = {
+    const replacements = {
       query: this.webSearchQuery(query),
-      headlineOptions: `MaxFragments=1, MinWords=${snippetMinWords}, MaxWords=${snippetMaxWords}`,
     };
 
-    const resultsQuery = Document.unscoped().findAll({
-      attributes: [
-        "id",
-        [
-          Sequelize.literal(
-            `ts_rank("searchVector", to_tsquery('english', :query))`
-          ),
-          "searchRanking",
+    try {
+      const resultsQuery = Document.unscoped().findAll({
+        attributes: [
+          "id",
+          [
+            Sequelize.literal(
+              `ts_rank("searchVector", to_tsquery('english', :query))`
+            ),
+            "searchRanking",
+          ],
         ],
-        [
-          Sequelize.literal(
-            `ts_headline('english', "text", to_tsquery('english', :query), :headlineOptions)`
-          ),
-          "searchContext",
+        replacements,
+        where,
+        order: [
+          ["searchRanking", "DESC"],
+          ["updatedAt", "DESC"],
         ],
-      ],
-      replacements: queryReplacements,
-      where,
-      order: [
-        ["searchRanking", "DESC"],
-        ["updatedAt", "DESC"],
-      ],
-      limit,
-      offset,
-    }) as any as Promise<RankedDocument[]>;
+        limit,
+        offset,
+      }) as any as Promise<RankedDocument[]>;
 
-    const countQuery = Document.unscoped().count({
-      // @ts-expect-error Types are incorrect for count
-      replacements: queryReplacements,
-      where,
-    }) as any as Promise<number>;
-    const [results, count] = await Promise.all([resultsQuery, countQuery]);
+      const countQuery = Document.unscoped().count({
+        // @ts-expect-error Types are incorrect for count
+        replacements,
+        where,
+      }) as any as Promise<number>;
+      const [results, count] = await Promise.all([resultsQuery, countQuery]);
 
-    // Final query to get associated document data
-    const documents = await Document.findAll({
-      where: {
-        id: map(results, "id"),
-        teamId: team.id,
-      },
-      include: [
-        {
-          model: Collection,
-          as: "collection",
+      // Final query to get associated document data
+      const documents = await Document.findAll({
+        where: {
+          id: map(results, "id"),
+          teamId: team.id,
         },
-      ],
-    });
+        include: [
+          {
+            model: Collection,
+            as: "collection",
+          },
+        ],
+      });
 
-    return this.buildResponse(results, documents, count);
+      return this.buildResponse(query, results, documents, count);
+    } catch (err) {
+      if (err.message.includes("syntax error in tsquery")) {
+        throw ValidationError("Invalid search query");
+      }
+      throw err;
+    }
   }
 
   public static async searchTitlesForUser(
@@ -158,7 +153,7 @@ export default class SearchHelper {
     options: SearchOptions = {}
   ): Promise<Document[]> {
     const { limit = 15, offset = 0 } = options;
-    const where = await this.buildWhere(user, options);
+    const where = await this.buildWhere(user, undefined, options);
 
     where[Op.and].push({
       title: {
@@ -214,26 +209,12 @@ export default class SearchHelper {
     query: string,
     options: SearchOptions = {}
   ): Promise<SearchResponse> {
-    const {
-      snippetMinWords = 20,
-      snippetMaxWords = 30,
-      limit = 15,
-      offset = 0,
-    } = options;
+    const { limit = 15, offset = 0 } = options;
 
-    const where = await this.buildWhere(user, options);
-
-    where[Op.and].push(
-      Sequelize.fn(
-        `"searchVector" @@ to_tsquery`,
-        "english",
-        Sequelize.literal(":query")
-      )
-    );
+    const where = await this.buildWhere(user, query, options);
 
     const queryReplacements = {
       query: this.webSearchQuery(query),
-      headlineOptions: `MaxFragments=1, MinWords=${snippetMinWords}, MaxWords=${snippetMaxWords}`,
     };
 
     const include = [
@@ -247,67 +228,132 @@ export default class SearchHelper {
       },
     ];
 
-    const resultsQuery = Document.unscoped().findAll({
-      attributes: [
-        "id",
-        [
-          Sequelize.literal(
-            `ts_rank("searchVector", to_tsquery('english', :query))`
-          ),
-          "searchRanking",
+    try {
+      const results = (await Document.unscoped().findAll({
+        attributes: [
+          "id",
+          [
+            Sequelize.literal(
+              `ts_rank("searchVector", to_tsquery('english', :query))`
+            ),
+            "searchRanking",
+          ],
         ],
-        [
-          Sequelize.literal(
-            `ts_headline('english', "text", to_tsquery('english', :query), :headlineOptions)`
-          ),
-          "searchContext",
+        subQuery: false,
+        include,
+        replacements: queryReplacements,
+        where,
+        order: [
+          ["searchRanking", "DESC"],
+          ["updatedAt", "DESC"],
         ],
-      ],
-      subQuery: false,
-      include,
-      replacements: queryReplacements,
-      where,
-      order: [
-        ["searchRanking", "DESC"],
-        ["updatedAt", "DESC"],
-      ],
-      limit,
-      offset,
-    }) as any as Promise<RankedDocument[]>;
+        limit,
+        offset,
+      })) as any as RankedDocument[];
 
-    const countQuery = Document.unscoped().count({
-      // @ts-expect-error Types are incorrect for count
-      subQuery: false,
-      include,
-      replacements: queryReplacements,
-      where,
-    }) as any as Promise<number>;
-    const [results, count] = await Promise.all([resultsQuery, countQuery]);
+      const countQuery = Document.unscoped().count({
+        // @ts-expect-error Types are incorrect for count
+        subQuery: false,
+        include,
+        replacements: queryReplacements,
+        where,
+      }) as any as Promise<number>;
 
-    // Final query to get associated document data
-    const documents = await Document.scope([
-      "withoutState",
-      "withDrafts",
-      {
-        method: ["withViews", user.id],
-      },
-      {
-        method: ["withCollectionPermissions", user.id],
-      },
-      {
-        method: ["withMembership", user.id],
-      },
-    ]).findAll({
-      where: {
-        teamId: user.teamId,
-        id: map(results, "id"),
-      },
-    });
+      // Final query to get associated document data
+      const [documents, count] = await Promise.all([
+        Document.scope([
+          "withState",
+          "withDrafts",
+          {
+            method: ["withViews", user.id],
+          },
+          {
+            method: ["withCollectionPermissions", user.id],
+          },
+          {
+            method: ["withMembership", user.id],
+          },
+        ]).findAll({
+          where: {
+            teamId: user.teamId,
+            id: map(results, "id"),
+          },
+        }),
+        results.length < limit && offset === 0
+          ? Promise.resolve(results.length)
+          : countQuery,
+      ]);
 
-    return this.buildResponse(results, documents, count);
+      return this.buildResponse(query, results, documents, count);
+    } catch (err) {
+      if (err.message.includes("syntax error in tsquery")) {
+        throw ValidationError("Invalid search query");
+      }
+      throw err;
+    }
   }
 
-  private static async buildWhere(model: User | Team, options: SearchOptions) {
+  private static buildResultContext(document: Document, query: string) {
+    const quotedQueries = Array.from(query.matchAll(/"([^"]*)"/g));
+    const text = DocumentHelper.toPlainText(document);
+
+    // Regex to highlight quoted queries as ts_headline will not do this by default due to stemming.
+    const fullMatchRegex = new RegExp(escapeRegExp(query), "i");
+    const highlightRegex = new RegExp(
+      [
+        fullMatchRegex.source,
+        ...(quotedQueries.length
+          ? quotedQueries.map((match) => escapeRegExp(match[1]))
+          : this.removeStopWords(query)
+              .trim()
+              .split(" ")
+              .map((match) => `\\b${escapeRegExp(match)}\\b`)),
+      ].join("|"),
+      "gi"
+    );
+
+    // Breaking characters
+    const breakChars = [
+      " ",
+      ".",
+      ",",
+      `"`,
+      "'",
+      "\n",
+      "。",
+      "！",
+      "？",
+      "!",
+      "?",
+      "…",
+    ];
+    const breakCharsRegex = new RegExp(`[${breakChars.join("")}]`, "g");
+
+    // chop text around the first match, prefer the first full match if possible.
+    const fullMatchIndex = text.search(fullMatchRegex);
+    const offsetStartIndex =
+      (fullMatchIndex >= 0 ? fullMatchIndex : text.search(highlightRegex)) - 65;
+    const startIndex = Math.max(
+      0,
+      offsetStartIndex <= 0
+        ? 0
+        : regexIndexOf(text, breakCharsRegex, offsetStartIndex)
+    );
+    const context = text.replace(highlightRegex, "<b>$&</b>");
+    const endIndex = regexLastIndexOf(
+      context,
+      breakCharsRegex,
+      startIndex + 250
+    );
+
+    return context.slice(startIndex, endIndex);
+  }
+
+  private static async buildWhere(
+    model: User | Team,
+    query: string | undefined,
+    options: SearchOptions
+  ) {
     const teamId = model instanceof Team ? model.id : model.teamId;
     const where: WhereOptions<Document> = {
       teamId,
@@ -354,55 +400,135 @@ export default class SearchHelper {
       });
     }
 
-    if (!options.includeArchived) {
+    if (options.documentIds) {
       where[Op.and].push({
-        archivedAt: {
-          [Op.eq]: null,
-        },
+        id: options.documentIds,
       });
     }
 
-    if (options.includeDrafts && model instanceof User) {
-      where[Op.and].push({
-        [Op.or]: [
+    const statusQuery = [];
+    if (options.statusFilter?.includes(StatusFilter.Published)) {
+      statusQuery.push({
+        [Op.and]: [
           {
             publishedAt: {
               [Op.ne]: null,
             },
+            archivedAt: {
+              [Op.eq]: null,
+            },
           },
-          {
-            createdById: model.id,
-          },
-          { "$memberships.id$": { [Op.ne]: null } },
         ],
       });
-    } else {
-      where[Op.and].push({
-        publishedAt: {
+    }
+
+    if (
+      options.statusFilter?.includes(StatusFilter.Draft) &&
+      // Only ever include draft results for the user's own documents
+      model instanceof User
+    ) {
+      statusQuery.push({
+        [Op.and]: [
+          {
+            publishedAt: {
+              [Op.eq]: null,
+            },
+            archivedAt: {
+              [Op.eq]: null,
+            },
+            [Op.or]: [
+              { createdById: model.id },
+              { "$memberships.id$": { [Op.ne]: null } },
+            ],
+          },
+        ],
+      });
+    }
+
+    if (options.statusFilter?.includes(StatusFilter.Archived)) {
+      statusQuery.push({
+        archivedAt: {
           [Op.ne]: null,
         },
       });
+    }
+
+    if (statusQuery.length) {
+      where[Op.and].push({
+        [Op.or]: statusQuery,
+      });
+    }
+
+    if (query) {
+      // find words that look like urls, these should be treated separately as the postgres full-text
+      // index will generally not match them.
+      const likelyUrls = getUrls(query);
+
+      // remove likely urls, and escape the rest of the query.
+      const limitedQuery = this.escapeQuery(
+        likelyUrls
+          .reduce((q, url) => q.replace(url, ""), query)
+          .slice(0, this.maxQueryLength)
+          .trim()
+      );
+
+      // Extract quoted queries and add them to the where clause, up to a maximum of 3 total.
+      const quotedQueries = Array.from(limitedQuery.matchAll(/"([^"]*)"/g)).map(
+        (match) => match[1]
+      );
+
+      const iLikeQueries = [...quotedQueries, ...likelyUrls].slice(0, 3);
+
+      for (const match of iLikeQueries) {
+        where[Op.and].push({
+          [Op.or]: [
+            {
+              title: {
+                [Op.iLike]: `%${match}%`,
+              },
+            },
+            {
+              text: {
+                [Op.iLike]: `%${match}%`,
+              },
+            },
+          ],
+        });
+      }
+
+      if (limitedQuery || iLikeQueries.length === 0) {
+        where[Op.and].push(
+          Sequelize.fn(
+            `"searchVector" @@ to_tsquery`,
+            "english",
+            Sequelize.literal(":query")
+          )
+        );
+      }
     }
 
     return where;
   }
 
   private static buildResponse(
+    query: string,
     results: RankedDocument[],
     documents: Document[],
     count: number
   ): SearchResponse {
     return {
-      results: map(results, (result) => ({
-        ranking: result.searchRanking,
-        context: removeMarkdown(result.searchContext, {
-          stripHTML: false,
-        }),
-        document: find(documents, {
+      results: map(results, (result) => {
+        const document = find(documents, {
           id: result.id,
-        }) as Document,
-      })),
-      totalCount: count,
+        }) as Document;
+
+        return {
+          ranking: result.dataValues.searchRanking,
+          context: this.buildResultContext(document, query),
+          document,
+        };
+      }),
+      total: count,
     };
   }
 
@@ -436,15 +562,164 @@ export default class SearchHelper {
     }
 
     return (
-      queryParser()(quotedSearch ? limitedQuery : `${limitedQuery}*`)
+      queryParser()(
+        // Although queryParser trims the query, looks like there's a
+        // bug for certain cases where it removes other characters in addition to
+        // spaces. Ref: https://github.com/caub/pg-tsquery/issues/27
+        quotedSearch ? limitedQuery.trim() : `${limitedQuery.trim()}*`
+      )
         // Remove any trailing join characters
         .replace(/&$/, "")
+        // Remove any trailing escape characters
+        .replace(/\\$/, "")
     );
   }
 
   private static escapeQuery(query: string): string {
-    // replace "\" with escaped "\\" because sequelize.escape doesn't do it
-    // https://github.com/sequelize/sequelize/issues/2950
-    return query.replace(/\\/g, "\\\\");
+    return (
+      query
+        // replace "\" with escaped "\\" because sequelize.escape doesn't do it
+        // see: https://github.com/sequelize/sequelize/issues/2950
+        .replace(/\\/g, "\\\\")
+        // replace ":" with escaped "\:" because it's a reserved character in tsquery
+        // see: https://github.com/outline/outline/issues/6542
+        .replace(/:/g, "\\:")
+    );
+  }
+
+  private static removeStopWords(query: string): string {
+    const stopwords = [
+      "i",
+      "me",
+      "my",
+      "myself",
+      "we",
+      "our",
+      "ours",
+      "ourselves",
+      "you",
+      "your",
+      "yours",
+      "yourself",
+      "yourselves",
+      "he",
+      "him",
+      "his",
+      "himself",
+      "she",
+      "her",
+      "hers",
+      "herself",
+      "it",
+      "its",
+      "itself",
+      "they",
+      "them",
+      "their",
+      "theirs",
+      "themselves",
+      "what",
+      "which",
+      "who",
+      "whom",
+      "this",
+      "that",
+      "these",
+      "those",
+      "am",
+      "is",
+      "are",
+      "was",
+      "were",
+      "be",
+      "been",
+      "being",
+      "have",
+      "has",
+      "had",
+      "having",
+      "do",
+      "does",
+      "did",
+      "doing",
+      "a",
+      "an",
+      "the",
+      "and",
+      "but",
+      "if",
+      "or",
+      "because",
+      "as",
+      "until",
+      "while",
+      "of",
+      "at",
+      "by",
+      "for",
+      "with",
+      "about",
+      "against",
+      "between",
+      "into",
+      "through",
+      "during",
+      "before",
+      "after",
+      "above",
+      "below",
+      "to",
+      "from",
+      "up",
+      "down",
+      "in",
+      "out",
+      "on",
+      "off",
+      "over",
+      "under",
+      "again",
+      "further",
+      "then",
+      "once",
+      "here",
+      "there",
+      "when",
+      "where",
+      "why",
+      "how",
+      "all",
+      "any",
+      "both",
+      "each",
+      "few",
+      "more",
+      "most",
+      "other",
+      "some",
+      "such",
+      "no",
+      "nor",
+      "not",
+      "only",
+      "own",
+      "same",
+      "so",
+      "than",
+      "too",
+      "very",
+      "s",
+      "t",
+      "can",
+      "will",
+      "just",
+      "don",
+      "should",
+      "now",
+    ];
+    return query
+      .split(" ")
+      .filter((word) => !stopwords.includes(word))
+      .join(" ");
   }
 }

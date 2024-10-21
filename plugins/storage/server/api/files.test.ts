@@ -5,7 +5,6 @@ import FormData from "form-data";
 import { ensureDirSync } from "fs-extra";
 import { v4 as uuidV4 } from "uuid";
 import env from "@server/env";
-import "@server/test/env";
 import FileStorage from "@server/storage/files";
 import { buildAttachment, buildUser } from "@server/test/factories";
 import { getTestServer } from "@server/test/support";
@@ -225,7 +224,8 @@ describe("#files.get", () => {
       body: form,
     });
 
-    const res = await server.get(await attachment.signedUrl);
+    const url = new URL(await attachment.signedUrl);
+    const res = await server.get(url.pathname + url.search);
     expect(res.status).toEqual(200);
     expect(res.headers.get("Content-Type")).toEqual(attachment.contentType);
     expect(res.headers.get("Content-Disposition")).toEqual(
@@ -248,7 +248,8 @@ describe("#files.get", () => {
       path.join(env.FILE_STORAGE_LOCAL_ROOT_DIR, key)
     );
 
-    const res = await server.get(signedUrl);
+    const url = new URL(signedUrl);
+    const res = await server.get(url.pathname + url.search);
     expect(res.status).toEqual(200);
     expect(res.headers.get("Content-Type")).toEqual(
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document"

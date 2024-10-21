@@ -53,6 +53,14 @@ async function build() {
           `yarn babel --extensions .ts,.tsx --quiet -d "./build/plugins/${plugin}/server" "./plugins/${plugin}/server"`
         );
       }
+
+      const hasShared = existsSync(`.\\plugins\\${plugin}\\shared`);
+
+      if (hasShared) {
+        await execAsync(
+          `yarn babel --extensions .ts,.tsx --quiet -d "./build/plugins/${plugin}/shared" "./plugins/${plugin}/shared"`
+        );
+      }
     }),
   ]);
 
@@ -68,13 +76,26 @@ async function build() {
     execAsync(
       "copy .\\server\\static\\error.prod.html .\\build\\server\\error.prod.html > NUL"
     ),
-    execAsync("copy package.json .\\build > NUL"),
-    ...d.map(async (plugin) =>
-      execAsync(
-        `copy .\\plugins\\${plugin}\\plugin.json .\\build\\plugins\\${plugin}\\plugin.json > NUL`
-      )
-    ),
+    ...d.map(async (plugin) => {
+      if (!existsSync(`.\\build\\plugins\\${plugin}`)) {
+        await execAsync(`mkdir .\\build\\plugins\\${plugin} > NUL`);
+      }
+    }),
   ]);
+
+  await Promise.all([
+    execAsync("copy package.json .\\build > NUL"),
+    ...d.map(async (plugin) => {
+      if (
+        !existsSync(`.\\build\\plugins\\${plugin}\\plugin.json`) &&
+        existsSync(`.\\plugins\\${plugin}\\plugin.json`)
+      ) {
+        await execAsync(
+          `copy .\\plugins\\${plugin}\\plugin.json .\\build\\plugins\\${plugin}\\plugin.json > NUL`
+        )
+      }
+    }),
+  ])
 
   console.log("Done!");
 }

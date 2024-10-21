@@ -1,4 +1,7 @@
 import { Next } from "koa";
+import capitalize from "lodash/capitalize";
+import { UserRole } from "@shared/types";
+import { UserRoleHelper } from "@shared/utils/UserRoleHelper";
 import Logger from "@server/logging/Logger";
 import tracer, {
   addTags,
@@ -14,10 +17,10 @@ import {
 } from "../errors";
 
 type AuthenticationOptions = {
-  /** An admin user role is required to access the route. */
-  admin?: boolean;
-  /** A member or admin user role is required to access the route. */
-  member?: boolean;
+  /** Role requuired to access the route. */
+  role?: UserRole;
+  /** Type of authentication required to access the route. */
+  type?: AuthenticationType;
   /** Authentication is parsed, but optional. */
   optional?: boolean;
 };
@@ -67,16 +70,16 @@ export default function auth(options: AuthenticationOptions = {}) {
         let apiKey;
 
         try {
-          apiKey = await ApiKey.findOne({
-            where: {
-              secret: token,
-            },
-          });
+          apiKey = await ApiKey.findByToken(token);
         } catch (err) {
           throw AuthenticationError("Invalid API key");
         }
 
         if (!apiKey) {
+          throw AuthenticationError("Invalid API key");
+        }
+
+        if (apiKey.expiresAt && apiKey.expiresAt < new Date()) {
           throw AuthenticationError("Invalid API key");
         }
 
@@ -93,6 +96,8 @@ export default function auth(options: AuthenticationOptions = {}) {
         if (!user) {
           throw AuthenticationError("Invalid API key");
         }
+
+        await apiKey.updateActiveAt();
       } else {
         type = AuthenticationType.APP;
         user = await getUserForJWT(String(token));
@@ -110,16 +115,12 @@ export default function auth(options: AuthenticationOptions = {}) {
         });
       }
 
-      if (options.admin) {
-        if (!user.isAdmin) {
-          throw AuthorizationError("Admin role required");
-        }
+      if (options.role && UserRoleHelper.isRoleLower(user.role, options.role)) {
+        throw AuthorizationError(`${capitalize(options.role)} role required`);
       }
 
-      if (options.member) {
-        if (user.isViewer) {
-          throw AuthorizationError("Member role required");
-        }
+      if (options.type && type !== options.type) {
+        throw AuthorizationError(`Invalid authentication type`);
       }
 
       // not awaiting the promises here so that the request is not blocked

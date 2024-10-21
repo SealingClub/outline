@@ -95,6 +95,21 @@ const DocumentMeta: React.FC<Props> = ({
         <Time dateTime={archivedAt} addSuffix />
       </span>
     );
+  } else if (
+    document.sourceMetadata &&
+    document.sourceMetadata?.importedAt &&
+    document.sourceMetadata.importedAt >= updatedAt
+  ) {
+    content = (
+      <span>
+        {document.sourceMetadata.createdByName
+          ? t("{{ userName }} updated", {
+              userName: document.sourceMetadata.createdByName,
+            })
+          : t("Imported")}{" "}
+        <Time dateTime={createdAt} addSuffix />
+      </span>
+    );
   } else if (createdAt === updatedAt) {
     content = (
       <span>
@@ -113,15 +128,6 @@ const DocumentMeta: React.FC<Props> = ({
         <Time dateTime={publishedAt} addSuffix />
       </span>
     );
-  } else if (isDraft) {
-    content = (
-      <span>
-        {lastUpdatedByCurrentUser
-          ? t("You saved")
-          : t("{{ userName }} saved", { userName })}{" "}
-        <Time dateTime={updatedAt} addSuffix />
-      </span>
-    );
   } else {
     content = (
       <Modified highlight={modifiedSinceViewed && !lastUpdatedByCurrentUser}>
@@ -134,7 +140,7 @@ const DocumentMeta: React.FC<Props> = ({
   }
 
   const nestedDocumentsCount = collection
-    ? collection.getDocumentChildren(document.id).length
+    ? collection.getChildrenForDocument(document.id).length
     : 0;
   const canShowProgressBar = isTasks && !isTemplate;
 
@@ -162,7 +168,13 @@ const DocumentMeta: React.FC<Props> = ({
   };
 
   return (
-    <Container align="center" rtl={document.dir === "rtl"} {...rest} dir="ltr">
+    <Container
+      align="center"
+      rtl={document.dir === "rtl"}
+      {...rest}
+      dir="ltr"
+      lang=""
+    >
       {to ? (
         <Link to={to} replace={replace}>
           {content}

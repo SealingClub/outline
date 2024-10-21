@@ -1,3 +1,4 @@
+import env from "../env";
 import * as urlsUtils from "./urls";
 import { urlRegex } from "./urls";
 
@@ -46,8 +47,20 @@ describe("isBase64Url", () => {
 });
 
 describe("isInternalUrl", () => {
+  beforeEach(() => {
+    env.URL = "https://example.com:3000";
+  });
+
   it("should return false if empty string", () => {
     expect(urlsUtils.isInternalUrl("")).toBe(false);
+  });
+
+  it("should return false if port is different", () => {
+    expect(urlsUtils.isInternalUrl("https://example.com:4000")).toBe(false);
+  });
+
+  it("should return false if port is missing", () => {
+    expect(urlsUtils.isInternalUrl("https://example.com")).toBe(false);
   });
 
   it("should return true if starting with relative path", () => {
@@ -138,5 +151,12 @@ describe("#urlRegex", () => {
   it("should return corresponding regex otherwise", () => {
     const regex = urlRegex("https://docs.google.com");
     expect(regex?.source).toBe(/https:\/\/docs\.google\.com/.source);
+    expect(regex?.test("https://docs.google.com")).toBe(true);
+    expect(regex?.test("https://docs.google.com/")).toBe(true);
+    expect(regex?.test("https://docs.google.com/d/123")).toBe(true);
+    expect(regex?.test("http://google.com")).toBe(false);
+    expect(regex?.test("http://docs.google.com")).toBe(false);
+    expect(regex?.test("http://docs.google.com/")).toBe(false);
+    expect(regex?.test("http://docs.google.com/d/123")).toBe(false);
   });
 });
